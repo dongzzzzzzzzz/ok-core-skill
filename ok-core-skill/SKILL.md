@@ -83,7 +83,7 @@ metadata:
 
 ```bash
 # 1. 安装依赖
-cd ok-skills-ag && uv sync
+cd ok-core-skill && uv sync
 
 # 2. 安装 Chrome 扩展：加载 extension/ 目录
 
