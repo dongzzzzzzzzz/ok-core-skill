@@ -6,7 +6,7 @@ import logging
 import time
 
 from . import selectors as sel
-from .bridge import BridgeClient
+from .client.base import BaseClient
 from .errors import OKElementNotFound, OKTimeout
 from .human import medium_delay, short_delay
 from .locale import build_locale, get_country_info
@@ -17,7 +17,7 @@ logger = logging.getLogger("ok-search")
 
 
 def search_listings(
-    bridge: BridgeClient,
+    bridge: BaseClient,
     keyword: str,
     country: str = "singapore",
     city: str = "singapore",
@@ -78,7 +78,7 @@ def search_listings(
     return result
 
 
-def _extract_listings(bridge: BridgeClient, max_results: int = 20) -> list[Listing]:
+def _extract_listings(bridge: BaseClient, max_results: int = 20) -> list[Listing]:
     """从当前页面提取帖子列表"""
     listings = []
 
@@ -103,7 +103,7 @@ def _extract_listings(bridge: BridgeClient, max_results: int = 20) -> list[Listi
     return listings
 
 
-def _extract_single_listing(bridge: BridgeClient, index: int) -> Listing | None:
+def _extract_single_listing(bridge: BaseClient, index: int) -> Listing | None:
     """提取单个帖子信息"""
     # 使用 JS 在主 world 中提取
     js = f"""

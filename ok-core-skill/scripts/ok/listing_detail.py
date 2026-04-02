@@ -5,24 +5,16 @@ from __future__ import annotations
 import logging
 
 from . import selectors as sel
-from .bridge import BridgeClient
-from .errors import OKElementNotFound
+from .client.base import BaseClient
+from .errors import OKElementNotFound, OKNotLoggedIn, OKTimeout
 from .human import medium_delay
 from .types import ListingDetail
 
 logger = logging.getLogger("ok-listing-detail")
 
 
-def get_listing_detail(bridge: BridgeClient, url: str) -> ListingDetail:
-    """获取帖子完整详情
-
-    Args:
-        bridge: BridgeClient 实例
-        url: 帖子 URL
-
-    Returns:
-        ListingDetail 对象
-    """
+def get_listing_detail(bridge: BaseClient, url: str) -> ListingDetail:
+    """进入帖子详情页并提取信息"""
     bridge.navigate(url)
     bridge.wait_dom_stable(timeout=15000)
     medium_delay()
@@ -72,8 +64,8 @@ def get_listing_detail(bridge: BridgeClient, url: str) -> ListingDetail:
     return detail
 
 
-def get_listing_detail_from_page(bridge: BridgeClient) -> ListingDetail:
-    """从当前页面获取帖子详情（不导航）"""
+def get_listing_detail_from_page(bridge: BaseClient) -> ListingDetail:
+    """从当前页面提取帖子详情"""
     url = bridge.get_url()
 
     js = f"""

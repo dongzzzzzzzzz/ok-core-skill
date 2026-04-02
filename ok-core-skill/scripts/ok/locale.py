@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
-import json
 import logging
+from functools import lru_cache
 from typing import Any
 
 import requests
 
+from .client.base import BaseClient
 from .errors import OKAPIError, OKLocaleError
 from .types import Category, City, Locale
 from .urls import (
@@ -279,7 +280,7 @@ def parse_locale_from_url(url: str) -> Locale | None:
     )
 
 
-def navigate_to_locale(bridge, country: str, city: str, lang: str = "en") -> Locale:
+def navigate_to_locale(bridge: BaseClient, country: str, city: str, lang: str = "en") -> Locale:
     """通过 Bridge 导航到指定 locale
 
     Args:
@@ -299,7 +300,7 @@ def navigate_to_locale(bridge, country: str, city: str, lang: str = "en") -> Loc
     return locale
 
 
-def get_current_locale(bridge) -> Locale | None:
-    """从当前页面获取 Locale"""
+def get_current_locale(bridge: BaseClient) -> Locale | None:
+    """从当前页面 URL 中解析 Locale 信息"""
     url = bridge.get_url()
     return parse_locale_from_url(url)

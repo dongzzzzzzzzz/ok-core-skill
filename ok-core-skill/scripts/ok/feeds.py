@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from .bridge import BridgeClient
+from .client.base import BaseClient
 from .human import medium_delay
 from .locale import build_locale
 from .search import _extract_listings
@@ -15,7 +15,7 @@ logger = logging.getLogger("ok-feeds")
 
 
 def list_feeds(
-    bridge: BridgeClient,
+    bridge: BaseClient,
     country: str = "singapore",
     city: str = "singapore",
     lang: str = "en",

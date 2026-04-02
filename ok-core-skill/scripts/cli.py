@@ -30,7 +30,7 @@ from pathlib import Path
 # 将 scripts/ 加入搜索路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from ok.bridge import BridgeClient, ensure_bridge_server
+from ok.client.factory import get_client
 from ok.errors import OKError
 
 
@@ -84,19 +84,19 @@ def cmd_list_categories(args):
 
 def cmd_set_locale(args):
     """设置 locale（导航到指定国家/城市）"""
-    ensure_bridge_server()
-    bridge = BridgeClient()
+    
+    client = get_client()
     from ok.locale import navigate_to_locale
-    locale = navigate_to_locale(bridge, args.country, args.city, args.lang)
+    locale = navigate_to_locale(client, args.country, args.city, args.lang)
     _output({"locale": asdict(locale), "url": locale.base_url()})
 
 
 def cmd_get_locale(args):
     """获取当前 locale"""
-    ensure_bridge_server()
-    bridge = BridgeClient()
+    
+    client = get_client()
     from ok.locale import get_current_locale
-    locale = get_current_locale(bridge)
+    locale = get_current_locale(client)
     if locale:
         _output({"locale": asdict(locale), "url": locale.base_url()})
     else:
@@ -105,11 +105,11 @@ def cmd_get_locale(args):
 
 def cmd_search(args):
     """搜索帖子"""
-    ensure_bridge_server()
-    bridge = BridgeClient()
+    
+    client = get_client()
     from ok.search import search_listings
     result = search_listings(
-        bridge,
+        client,
         keyword=args.keyword,
         country=args.country,
         city=args.city,
@@ -125,11 +125,11 @@ def cmd_search(args):
 
 def cmd_list_feeds(args):
     """获取首页推荐"""
-    ensure_bridge_server()
-    bridge = BridgeClient()
+    
+    client = get_client()
     from ok.feeds import list_feeds
     listings = list_feeds(
-        bridge,
+        client,
         country=args.country,
         city=args.city,
         lang=args.lang,
@@ -143,20 +143,20 @@ def cmd_list_feeds(args):
 
 def cmd_get_listing(args):
     """获取帖子详情"""
-    ensure_bridge_server()
-    bridge = BridgeClient()
+    
+    client = get_client()
     from ok.listing_detail import get_listing_detail
-    detail = get_listing_detail(bridge, args.url)
+    detail = get_listing_detail(client, args.url)
     _output(asdict(detail))
 
 
 def cmd_browse_category(args):
     """按分类浏览"""
-    ensure_bridge_server()
-    bridge = BridgeClient()
+    
+    client = get_client()
     from ok.categories import browse_category
     listings = browse_category(
-        bridge,
+        client,
         category_code=args.category,
         country=args.country,
         city=args.city,
@@ -172,18 +172,18 @@ def cmd_browse_category(args):
 
 def cmd_check_login(args):
     """检查登录状态"""
-    ensure_bridge_server()
-    bridge = BridgeClient()
+    
+    client = get_client()
 
     # 先确保在 ok.com 页面
-    url = bridge.get_url()
+    url = client.get_url()
     if "ok.com" not in url:
         from ok.urls import build_base_url
-        bridge.navigate(build_base_url("sg", "en", "singapore"))
-        bridge.wait_dom_stable()
+        client.navigate(build_base_url("sg", "en", "singapore"))
+        client.wait_dom_stable()
 
     from ok.login import check_login
-    status = check_login(bridge)
+    status = check_login(client)
     _output(status)
 
 

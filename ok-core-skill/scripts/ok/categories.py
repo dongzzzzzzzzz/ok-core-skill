@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 
 from . import selectors as sel
-from .bridge import BridgeClient
+from .client.base import BaseClient
+from .errors import OKTimeout
 from .human import medium_delay
 from .locale import build_locale
 from .search import _extract_listings
@@ -16,7 +17,7 @@ logger = logging.getLogger("ok-categories")
 
 
 def browse_category(
-    bridge: BridgeClient,
+    bridge: BaseClient,
     category_code: str,
     country: str = "singapore",
     city: str = "singapore",

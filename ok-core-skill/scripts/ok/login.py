@@ -5,13 +5,13 @@ from __future__ import annotations
 import logging
 
 from . import selectors as sel
-from .bridge import BridgeClient
+from .client.base import BaseClient
 from .errors import OKNotLoggedIn
 
 logger = logging.getLogger("ok-login")
 
 
-def check_login(bridge: BridgeClient) -> dict:
+def check_login(bridge: BaseClient) -> dict:
     """检查登录状态
 
     Returns:
@@ -37,7 +37,7 @@ def check_login(bridge: BridgeClient) -> dict:
     return result
 
 
-def require_login(bridge: BridgeClient) -> dict:
+def require_login(bridge: BaseClient) -> dict:
     """要求登录状态，未登录则抛出异常"""
     status = check_login(bridge)
     if not status["logged_in"]:
