@@ -25,7 +25,7 @@ OK.com 分类信息自动化 Skills，通过 Chrome 扩展 + Python 引擎，让
 ### 第一步：安装依赖
 
 ```bash
-cd ok-skills-ag
+cd ok-core-skill
 uv sync
 ```
 
