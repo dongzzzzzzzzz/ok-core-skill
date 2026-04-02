@@ -22,9 +22,9 @@ metadata:
 
 ## 🔒 技能边界（强制）
 
-**所有 OK.com 操作只能通过本项目的 `python scripts/cli.py` 完成：**
+**所有 OK.com 操作只能通过本项目的 `uv run python scripts/cli.py` 完成：**
 
-- **唯一执行方式**：只运行 `python scripts/cli.py <子命令>`
+- **唯一执行方式**：只运行 `uv run python scripts/cli.py <子命令>`
 - **完成即止**：任务完成后直接告知结果，等待用户下一步指令
 
 ---
@@ -88,30 +88,30 @@ cd ok-core-skill && uv sync
 # 2. 安装 Chrome 扩展：加载 extension/ 目录
 
 # 3. 启动 Bridge Server
-python scripts/bridge_server.py
+uv run python scripts/bridge_server.py
 
 # 4. 列出支持的国家
-python scripts/cli.py list-countries
+uv run python scripts/cli.py list-countries
 
 # 5. 获取新加坡的城市列表
-python scripts/cli.py list-cities --country singapore
+uv run python scripts/cli.py list-cities --country singapore
 
 # 6. 切换到新加坡
-python scripts/cli.py set-locale --country singapore --city singapore
+uv run python scripts/cli.py set-locale --country singapore --city singapore
 
 # 7. 搜索帖子
-python scripts/cli.py search --keyword "laptop" --country singapore --city singapore
+uv run python scripts/cli.py search --keyword "laptop" --country singapore --city singapore
 
 # 8. 按分类浏览
-python scripts/cli.py browse-category --category marketplace --country singapore --city singapore
+uv run python scripts/cli.py browse-category --category marketplace --country singapore --city singapore
 
 # 9. 获取帖子详情
-python scripts/cli.py get-listing --url "https://sg.ok.com/en/city-singapore/cate-xxx/slug/"
+uv run python scripts/cli.py get-listing --url "https://sg.ok.com/en/city-singapore/cate-xxx/slug/"
 ```
 
 ## 失败处理
 
-- **Bridge Server 未启动**：运行 `python scripts/bridge_server.py`
+- **Bridge Server 未启动**：运行 `uv run python scripts/bridge_server.py`
 - **Extension 未连接**：确认 Chrome 已安装并启用 OK Bridge 扩展
 - **操作超时**：检查网络连接，适当增加等待时间
 - **API 错误**：检查国家/城市参数是否正确

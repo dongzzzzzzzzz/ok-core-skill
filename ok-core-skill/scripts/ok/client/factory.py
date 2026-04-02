@@ -25,7 +25,7 @@ def get_client() -> BaseClient:
     if _client_instance:
         return _client_instance
 
-    logger.info("正在检测客户端运行环境方案...")
+    logger.debug("正在检测客户端运行环境方案...")
 
     # 1. 尝试检测本地 Extension 桥接是否存在
     bridge_client = BridgeClient(port=BRIDGE_PORT, timeout=3.0)
@@ -33,7 +33,9 @@ def get_client() -> BaseClient:
         # 使用极短超时判断 9334 连接
         connected = bridge_client.ping()
         if connected:
-            logger.info("✅ 检测到 [Chrome 插件桥接] 环境！将使用用户的原生浏览器进行操作。")
+            logger.debug("✅ 检测到 [Chrome 插件桥接] 环境！将使用用户的原生浏览器进行操作。")
+            # 恢复正常操作的超时时间，否则 3.0s 极化设置会波及后续所有请求导致报错
+            bridge_client.timeout = 90.0
             _client_instance = bridge_client
             return _client_instance
     except Exception:

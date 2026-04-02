@@ -12,19 +12,19 @@ description: |
 
 ```bash
 # 搜索帖子
-python scripts/cli.py search --keyword "laptop" --country singapore --city singapore
-python scripts/cli.py search --keyword "apartment" --country canada --city toronto --max-results 10
+uv run python scripts/cli.py search --keyword "laptop" --country singapore --city singapore
+uv run python scripts/cli.py search --keyword "apartment" --country canada --city toronto --max-results 10
 
 # 获取首页推荐
-python scripts/cli.py list-feeds --country singapore --city singapore
-python scripts/cli.py list-feeds --country canada --city vancouver --max-results 10
+uv run python scripts/cli.py list-feeds --country singapore --city singapore
+uv run python scripts/cli.py list-feeds --country canada --city vancouver --max-results 10
 
 # 按分类浏览
-python scripts/cli.py browse-category --category marketplace --country singapore --city singapore
-python scripts/cli.py browse-category --category jobs --country canada --city toronto
+uv run python scripts/cli.py browse-category --category marketplace --country singapore --city singapore
+uv run python scripts/cli.py browse-category --category jobs --country canada --city toronto
 
 # 获取帖子详情
-python scripts/cli.py get-listing --url "https://sg.ok.com/en/city-singapore/cate-xxx/slug/"
+uv run python scripts/cli.py get-listing --url "https://sg.ok.com/en/city-singapore/cate-xxx/slug/"
 ```
 
 ## 主要分类 code

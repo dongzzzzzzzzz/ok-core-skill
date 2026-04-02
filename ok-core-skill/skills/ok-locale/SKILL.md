@@ -12,21 +12,21 @@ description: |
 
 ```bash
 # 列出支持的国家
-python scripts/cli.py list-countries
+uv run python scripts/cli.py list-countries
 
 # 动态获取城市列表
-python scripts/cli.py list-cities --country singapore
-python scripts/cli.py list-cities --country canada --lang en
+uv run python scripts/cli.py list-cities --country singapore
+uv run python scripts/cli.py list-cities --country canada --lang en
 
 # 动态获取分类树
-python scripts/cli.py list-categories --country singapore
+uv run python scripts/cli.py list-categories --country singapore
 
 # 切换到指定地区
-python scripts/cli.py set-locale --country singapore --city singapore --lang en
-python scripts/cli.py set-locale --country canada --city toronto
+uv run python scripts/cli.py set-locale --country singapore --city singapore --lang en
+uv run python scripts/cli.py set-locale --country canada --city toronto
 
 # 获取当前地区
-python scripts/cli.py get-locale
+uv run python scripts/cli.py get-locale
 ```
 
 ## 参数说明

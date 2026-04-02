@@ -12,7 +12,7 @@ description: |
 
 ```bash
 # 检查登录状态
-python scripts/cli.py check-login
+uv run python scripts/cli.py check-login
 ```
 
 ## 返回值
