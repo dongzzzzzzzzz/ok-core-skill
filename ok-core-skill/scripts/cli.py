@@ -170,21 +170,51 @@ def cmd_browse_category(args):
     })
 
 
-def cmd_check_login(args):
-    """检查登录状态"""
-    
-    client = get_client()
-
-    # 先确保在 ok.com 页面
+def _ensure_on_ok(client, country="singapore", lang="en"):
+    """确保浏览器在 ok.com 页面上"""
     url = client.get_url()
     if "ok.com" not in url:
         from ok.urls import build_base_url
-        client.navigate(build_base_url("sg", "en", "singapore"))
+        try:
+            from ok.locale import get_country_info
+            info = get_country_info(country)
+            subdomain = info["subdomain"]
+        except Exception:
+            subdomain = "sg"
+        client.navigate(build_base_url(subdomain, lang, country))
         client.wait_dom_stable()
+
+
+def cmd_check_login(args):
+    """检查登录状态"""
+    client = get_client()
+    _ensure_on_ok(client, getattr(args, "country", "singapore"))
 
     from ok.login import check_login
     status = check_login(client)
     _output(status)
+
+
+def cmd_login(args):
+    """通过邮箱密码登录"""
+    client = get_client()
+    _ensure_on_ok(client, getattr(args, "country", "singapore"))
+
+    from ok.login import login_with_email
+    result = login_with_email(client, args.email, args.password)
+    exit_code = 0 if result.get("logged_in") else 2
+    _output(result, exit_code)
+
+
+def cmd_wait_login(args):
+    """等待用户手动完成登录（OAuth 等）"""
+    client = get_client()
+    _ensure_on_ok(client, getattr(args, "country", "singapore"))
+
+    from ok.login import wait_for_login
+    result = wait_for_login(client, timeout=args.timeout)
+    exit_code = 0 if result.get("logged_in") else 2
+    _output(result, exit_code)
 
 
 # ─── CLI 入口 ─────────────────────────────────────────────
@@ -246,7 +276,19 @@ def main():
     p.add_argument("--max-results", type=int, default=20, help="最大结果数（默认 20）")
 
     # check-login
-    subparsers.add_parser("check-login", help="检查登录状态")
+    p = subparsers.add_parser("check-login", help="检查登录状态")
+    p.add_argument("--country", default="singapore", help="国家（用于导航，默认 singapore）")
+
+    # login
+    p = subparsers.add_parser("login", help="通过邮箱密码登录")
+    p.add_argument("--email", required=True, help="邮箱地址")
+    p.add_argument("--password", required=True, help="密码")
+    p.add_argument("--country", default="singapore", help="国家（用于导航，默认 singapore）")
+
+    # wait-login
+    p = subparsers.add_parser("wait-login", help="等待用户手动完成登录（OAuth 等场景）")
+    p.add_argument("--timeout", type=float, default=120.0, help="等待超时秒数（默认 120）")
+    p.add_argument("--country", default="singapore", help="国家（用于导航，默认 singapore）")
 
     args = parser.parse_args()
 
@@ -273,6 +315,8 @@ def main():
         "get-listing": cmd_get_listing,
         "browse-category": cmd_browse_category,
         "check-login": cmd_check_login,
+        "login": cmd_login,
+        "wait-login": cmd_wait_login,
     }
 
     handler = cmd_map.get(args.command)
