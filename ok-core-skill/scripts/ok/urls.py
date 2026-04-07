@@ -58,6 +58,17 @@ def build_categories_api_url(subdomain: str, exclude_self: int = 1, depth: int =
     return f"{build_api_base(subdomain)}/getLevelCates?excludeSelf={exclude_self}&depth={depth}"
 
 
+def build_city_search_api_url(subdomain: str, keyword: str) -> str:
+    """构建城市搜索 API URL（POST 请求）
+
+    Examples:
+        >>> build_city_search_api_url("us", "ha")
+        'https://uspub.ok.com/smartProbe/api/local/search?keyword=ha'
+    """
+    from urllib.parse import quote
+    return f"{build_api_base(subdomain)}/local/search?keyword={quote(keyword)}"
+
+
 def parse_url(url: str) -> dict:
     """从 ok.com URL 解析出 locale 信息
 

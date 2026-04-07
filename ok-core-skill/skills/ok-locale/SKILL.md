@@ -15,8 +15,7 @@ description: |
 uv run python scripts/cli.py list-countries
 
 # 动态获取城市列表
-uv run python scripts/cli.py list-cities --country singapore
-uv run python scripts/cli.py list-cities --country canada --lang en
+uv run python scripts/cli.py list-cities --country usa --mode search --keyword 'new york'
 
 # 动态获取分类树
 uv run python scripts/cli.py list-categories --country singapore
@@ -34,10 +33,12 @@ uv run python scripts/cli.py get-locale
 - `--country`: 国家名（如 `singapore`）、子域名（如 `sg`）或 ISO code（如 `SG`）
 - `--city`: 城市 code（可从 `list-cities` 获取，如 `singapore`, `toronto`, `bedok`）
 - `--lang`: 语言代码（默认 `en`）
+- `--keyword`: 搜索关键词（城市名，用于搜索城市，如`hawaii`）
 
 ## 工作流
 
 1. 先用 `list-countries` 确定目标国家
 2. 用 `list-cities --country <国家>` 获取可用城市
-3. 用 `set-locale` 切换到目标地区
-4. 后续搜索/浏览操作使用对应的 `--country` `--city` 参数
+3. 如果没有找到，可以用 `list-cities --country <国家> --mode search --keyword <城市关键词>` 搜索
+4. 用 `set-locale` 切换到目标地区
+5. 后续搜索/浏览操作使用对应的 `--country` `--city` 参数

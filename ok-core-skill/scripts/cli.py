@@ -55,10 +55,19 @@ def cmd_list_countries(args):
 
 def cmd_list_cities(args):
     """动态获取指定国家的城市列表"""
-    from ok.locale import fetch_cities
-    cities = fetch_cities(args.country, args.lang)
+    from ok.locale import fetch_cities, search_cities, fetch_all_cities
+
+    mode = getattr(args, 'mode', 'api')
+    if mode == 'search' and hasattr(args, 'keyword'):
+        cities = search_cities(args.country, args.keyword, args.lang)
+    elif mode == 'all':
+        cities = fetch_all_cities(args.country, lang=args.lang)
+    else:
+        cities = fetch_cities(args.country, args.lang)
+
     _output({
         "country": args.country,
+        "mode": mode,
         "total": len(cities),
         "cities": [{"name": c.name, "code": c.code, "local_id": c.local_id} for c in cities],
     })
@@ -84,11 +93,38 @@ def cmd_list_categories(args):
 
 def cmd_set_locale(args):
     """设置 locale（导航到指定国家/城市）"""
-    
     client = get_client()
-    from ok.locale import navigate_to_locale
-    locale = navigate_to_locale(client, args.country, args.city, args.lang)
-    _output({"locale": asdict(locale), "url": locale.base_url()})
+    mode = getattr(args, 'mode', 'api')
+
+    if mode == 'human':
+        from ok.locale_human import switch_city_via_ui
+        result = switch_city_via_ui(client, args.city)
+        _output({
+            "mode": "human",
+            "success": result.success,
+            "elapsed_seconds": result.elapsed_seconds,
+            "locale": asdict(result.final_locale) if result.final_locale else None,
+            "url": result.final_url,
+            "error": result.error,
+        })
+    else:
+        from ok.locale import navigate_to_locale
+        locale = navigate_to_locale(client, args.country, args.city, args.lang)
+        _output({"mode": "api", "locale": asdict(locale), "url": locale.base_url()})
+
+
+def cmd_search_cities(args):
+    """通过搜索接口匹配城市"""
+    from ok.locale import search_cities
+    cities = search_cities(args.country, args.keyword, args.lang)
+    _output({
+        "country": args.country,
+        "keyword": args.keyword,
+        "total": len(cities),
+        "cities": [{"name": c.name, "code": c.code, "local_id": c.local_id} for c in cities],
+    })
+
+
 
 
 def cmd_get_locale(args):
@@ -203,6 +239,15 @@ def main():
     p = subparsers.add_parser("list-cities", help="动态获取指定国家的城市列表")
     p.add_argument("--country", required=True, help="国家名/子域名/ISO code")
     p.add_argument("--lang", default="en", help="语言（默认 en）")
+    p.add_argument("--mode", choices=["api", "search", "all"], default="api",
+                   help="获取方式: api=allCities接口, search=搜索接口, all=合并两者（默认 api）")
+    p.add_argument("--keyword", default="", help="搜索关键词（mode=search 时必须）")
+
+    # search-cities
+    p = subparsers.add_parser("search-cities", help="通过搜索接口匹配城市")
+    p.add_argument("--country", required=True, help="国家名/子域名/ISO code")
+    p.add_argument("--keyword", required=True, help="搜索关键词")
+    p.add_argument("--lang", default="en", help="语言（默认 en）")
 
     # list-categories
     p = subparsers.add_parser("list-categories", help="动态获取分类树")
@@ -212,8 +257,11 @@ def main():
     # set-locale
     p = subparsers.add_parser("set-locale", help="设置 locale（导航到指定国家/城市）")
     p.add_argument("--country", required=True, help="国家名/子域名/ISO code")
-    p.add_argument("--city", required=True, help="城市 code")
+    p.add_argument("--city", required=True, help="城市 code（api模式）或城市名（human模式）")
     p.add_argument("--lang", default="en", help="语言（默认 en）")
+    p.add_argument("--mode", choices=["api", "human"], default="api",
+                   help="切换方式: api=URL直接导航, human=模拟人工UI操作（默认 api）")
+
 
     # get-locale
     subparsers.add_parser("get-locale", help="获取当前 locale")
@@ -265,9 +313,11 @@ def main():
     cmd_map = {
         "list-countries": cmd_list_countries,
         "list-cities": cmd_list_cities,
+        "search-cities": cmd_search_cities,
         "list-categories": cmd_list_categories,
         "set-locale": cmd_set_locale,
         "get-locale": cmd_get_locale,
+
         "search": cmd_search,
         "list-feeds": cmd_list_feeds,
         "get-listing": cmd_get_listing,

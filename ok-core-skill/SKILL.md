@@ -55,7 +55,7 @@ metadata:
 | 命令 | 功能 |
 |------|------|
 | `cli.py list-countries` | 列出支持的国家 |
-| `cli.py list-cities --country <国家>` | 动态获取城市列表 |
+| `cli.py list-cities --country <国家> --mode search --keyword <城市关键词>` | 搜索城市 |
 | `cli.py list-categories --country <国家>` | 动态获取分类树 |
 | `cli.py set-locale --country <国家> --city <城市>` | 切换到指定地区 |
 | `cli.py get-locale` | 获取当前地区 |
@@ -94,7 +94,7 @@ uv run python scripts/bridge_server.py
 uv run python scripts/cli.py list-countries
 
 # 5. 获取新加坡的城市列表
-uv run python scripts/cli.py list-cities --country singapore
+uv run python scripts/cli.py list-cities --country singapore -mode search --keyword singapore
 
 # 6. 切换到新加坡
 uv run python scripts/cli.py set-locale --country singapore --city singapore

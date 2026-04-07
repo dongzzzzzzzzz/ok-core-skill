@@ -102,7 +102,7 @@ python scripts/cli.py check-login
 ## 项目结构
 
 ```
-ok-skills-ag/
+ok-core-skill/
 ├── extension/                  # Chrome 扩展
 │   ├── manifest.json
 │   ├── background.js           # WebSocket 通信 + 命令路由

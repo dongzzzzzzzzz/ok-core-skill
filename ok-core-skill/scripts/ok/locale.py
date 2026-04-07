@@ -18,6 +18,7 @@ from .urls import (
     build_base_url,
     build_categories_api_url,
     build_cities_api_url,
+    build_city_search_api_url,
     parse_url,
 )
 
@@ -157,6 +158,97 @@ def fetch_cities(country: str, lang: str = "en", use_cache: bool = True) -> list
     _city_cache[cache_key] = cities
     logger.info("获取到 %d 个城市", len(cities))
     return cities
+
+
+def search_cities(
+    country: str, keyword: str, lang: str = "en"
+) -> list[City]:
+    """通过搜索接口模糊匹配城市（补全 allCities 接口缺失的地域）
+
+    使用 POST /smartProbe/api/local/search?keyword=X
+
+    Args:
+        country: 国家名、子域名或 ISO code
+        keyword: 搜索关键词（如 "ha" 匹配 Hawaii, Hartford 等）
+        lang: 语言代码
+
+    Returns:
+        匹配的城市列表
+    """
+    country_info = get_country_info(country)
+    api_url = build_city_search_api_url(country_info["subdomain"], keyword)
+    headers = _build_api_headers(country_info, lang)
+
+    logger.info("搜索城市: keyword=%s (country=%s)", keyword, country_info["code"])
+
+    try:
+        resp = requests.post(api_url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as e:
+        raise OKAPIError(f"搜索城市失败: {e}")
+
+    if data.get("responseCode") != 200:
+        raise OKAPIError(
+            f"API 返回错误: {data.get('responseMsg', 'Unknown')}",
+            response_code=data.get("responseCode"),
+        )
+
+    cities: list[City] = []
+    for item in data.get("data", []):
+        cities.append(City(
+            local_id=str(item.get("localId", "")),
+            name=item.get("name", ""),
+            code=item.get("code", ""),
+        ))
+
+    logger.info("搜索到 %d 个匹配城市", len(cities))
+    return cities
+
+
+def fetch_all_cities(
+    country: str,
+    keyword_prefixes: list[str] | None = None,
+    lang: str = "en",
+) -> list[City]:
+    """合并 allCities + search 接口，尽可能获取完整城市列表
+
+    先调用 fetch_cities（allCities API）获取基础列表，
+    再通过 search_cities 按字母前缀批量搜索，合并去重。
+
+    Args:
+        country: 国家名、子域名或 ISO code
+        keyword_prefixes: 搜索关键词前缀列表，默认 a-z
+        lang: 语言代码
+
+    Returns:
+        合并去重后的完整城市列表
+    """
+    if keyword_prefixes is None:
+        keyword_prefixes = [chr(c) for c in range(ord("a"), ord("z") + 1)]
+
+    # 1. 先获取 allCities 基础列表
+    base_cities = fetch_cities(country, lang, use_cache=True)
+    seen_codes: set[str] = {c.code for c in base_cities}
+    merged: list[City] = list(base_cities)
+
+    # 2. 通过 search 接口补全
+    for prefix in keyword_prefixes:
+        try:
+            results = search_cities(country, prefix, lang)
+            for city in results:
+                if city.code and city.code not in seen_codes:
+                    merged.append(city)
+                    seen_codes.add(city.code)
+        except OKAPIError as e:
+            logger.warning("搜索前缀 '%s' 失败: %s", prefix, e)
+            continue
+
+    logger.info(
+        "合并完成: allCities=%d + search 补全=%d = 总计 %d",
+        len(base_cities), len(merged) - len(base_cities), len(merged),
+    )
+    return merged
 
 
 def get_popular_cities(country: str, lang: str = "en") -> list[City]:

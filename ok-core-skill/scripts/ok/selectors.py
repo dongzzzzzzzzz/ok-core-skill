@@ -44,6 +44,7 @@ CITY_MODAL = "[class*='SearchArea'], [class*='searchArea'], [class*='cityModal']
 CITY_SEARCH_INPUT = "[class*='SearchArea'] input, [class*='cityModal'] input"
 CITY_LIST_ITEM = "[class*='cityItem'], [class*='city-item']"
 CITY_TOP_CITIES = "[class*='topCities'], [class*='popularCities']"
+CITY_SEARCH_RESULT_ITEM = "[class*='locationWrapperContent'] div[class*='item'], [class*='SearchArea'] div[class*='item'], [class*='cityItem'], [class*='city-item']"
 
 # ─── 国家/语言选择器 ─────────────────────────────────────────
 COUNTRY_SELECTOR_TRIGGER = "[class*='flagIcon'], [class*='flag-icon']"
