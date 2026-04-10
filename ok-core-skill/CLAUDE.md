@@ -17,6 +17,8 @@ uv run pytest              # 运行测试
 
 ## 架构
 
+**扩展路径（默认推荐）**
+
 ```
 AI Agent / CLI
     ↓ (WebSocket)
@@ -26,6 +28,14 @@ Chrome Extension (OK Bridge)
     ↓ (DOM 操作)
 ok.com 网页
 ```
+
+**客户端选择**（`scripts/ok/client/factory.py` 的 `get_client()`）
+
+1. **Chrome 扩展 + Bridge**：`BridgeClient` ping 成功时使用。
+2. **CDP**：未使用扩展时，若设置环境变量 `OK_CDP_URL`（例如 `http://127.0.0.1:9222`），则通过 Playwright `connect_over_cdp` 连接本机已开启远程调试的 Chrome，复用真实用户会话。连接超时约 3s；失败时降级到 Playwright，除非设置 `OK_CDP_STRICT=1`（此时连接失败会抛错）。
+3. **Playwright 无头**：以上皆不可用时兜底（`playwright_client.py`）。
+
+实现见 `scripts/ok/client/cdp_client.py`。需本机存在可访问的 CDP HTTP 端点（可由用户、`bb-browser` daemon 或其他工具代为开启 Chrome 调试端口）。
 
 ## 关键设计
 

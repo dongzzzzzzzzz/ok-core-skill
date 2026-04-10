@@ -109,9 +109,16 @@ uv run python scripts/cli.py browse-category --category marketplace --country si
 uv run python scripts/cli.py get-listing --url "https://sg.ok.com/en/city-singapore/cate-xxx/slug/"
 ```
 
+## 客户端优先级（自动化底层）
+
+CLI 通过 `get_client()` 按顺序选用：**扩展 + Bridge** → **CDP（可选）** → **Playwright 无头**。
+
+- **不装扩展、但已用远程调试启动 Chrome**（例如 `bb-browser` daemon 或其他工具已暴露 CDP）：可设置 `OK_CDP_URL=http://127.0.0.1:9222`（端口以实际为准），再运行 CLI。调试端口仅应本机可信环境使用。
+- **调试 CDP 连接**：设置 `OK_CDP_STRICT=1` 时，若 CDP 连接失败则直接报错，不静默降级到 Playwright。
+
 ## 失败处理
 
 - **Bridge Server 未启动**：运行 `uv run python scripts/bridge_server.py`
-- **Extension 未连接**：确认 Chrome 已安装并启用 OK Bridge 扩展
+- **Extension 未连接**：确认 Chrome 已安装并启用 OK Bridge 扩展；或使用上述 `OK_CDP_URL` 走 CDP
 - **操作超时**：检查网络连接，适当增加等待时间
 - **API 错误**：检查国家/城市参数是否正确
