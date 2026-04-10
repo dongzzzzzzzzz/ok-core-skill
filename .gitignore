@@ -38,3 +38,8 @@ yarn-error.log*
 
 # Dependencies
 node_modules/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
