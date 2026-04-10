@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 
 from . import selectors as sel
@@ -52,15 +53,82 @@ def require_login(bridge: BaseClient) -> dict:
 # ─── 登录弹窗操作 ─────────────────────────────────────────
 
 
+def _click_login_entry_js() -> str:
+    """在页面内查找并点击「登录 / 注册」入口，返回结果说明（用于日志）。"""
+    return """
+    (() => {
+      const tryClick = (el) => {
+        if (!el) return false;
+        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        if (typeof el.click === 'function') el.click();
+        return true;
+      };
+      let el = document.querySelector("#pcUserInfoArea [class*='PcUserInfo_loginButton']");
+      if (tryClick(el)) return "pc-nested";
+      el = document.querySelector("[class*='PcUserInfo_loginButton']");
+      if (tryClick(el)) return "pc-class-anywhere";
+      const texts = ["Log in / Register", "Log In / Register", "登录", "Login"];
+      const nodes = document.querySelectorAll("a, button, div, span");
+      for (const n of nodes) {
+        const t = (n.textContent || "").trim();
+        if (!t || t.length > 40) continue;
+        if (texts.some((x) => t === x || t.toLowerCase() === x.toLowerCase())) {
+          let cur = n;
+          for (let i = 0; i < 6 && cur; i++) {
+            const cls = cur.className && cur.className.toString ? cur.className.toString() : "";
+            if (cls.includes("login") || cls.includes("Login") || cur.tagName === "BUTTON" || cur.tagName === "A") {
+              if (tryClick(cur)) return "text-walk:" + t.slice(0, 20);
+              break;
+            }
+            cur = cur.parentElement;
+          }
+          if (tryClick(n)) return "text-direct:" + t.slice(0, 20);
+        }
+      }
+      return "";
+    })()
+    """
+
+
 def _open_login_modal(bridge: BaseClient) -> None:
     """点击 'Log in / Register' 按钮打开登录弹窗"""
-    if not bridge.has_element(sel.LOGIN_TRIGGER):
-        raise OKElementNotFound("找不到登录按钮，可能已登录或页面未正确加载")
+    # 不使用 wait_for_selector（Bridge 对长时间 Promise 可能卡住）；用短轮询 + 点击兜底
 
-    bridge.click_element(sel.LOGIN_TRIGGER)
+    deadline = time.monotonic() + 12
+    while time.monotonic() < deadline:
+        if bridge.has_element(sel.LOGIN_TRIGGER) or bridge.has_element(sel.LOGIN_TRIGGER_ANY):
+            break
+        time.sleep(0.35)
+    else:
+        logger.warning("未在超时内看到 PcUserInfo_loginButton，尝试全页文本匹配")
+
+    if bridge.has_element(sel.LOGIN_TRIGGER):
+        bridge.click_element(sel.LOGIN_TRIGGER)
+    elif bridge.has_element(sel.LOGIN_TRIGGER_ANY):
+        bridge.click_element(sel.LOGIN_TRIGGER_ANY)
+    else:
+        via = bridge.evaluate(_click_login_entry_js())
+        if not via:
+            diag = bridge.evaluate("""
+            (() => {
+              const w = window.innerWidth || 0;
+              const hasPc = !!document.querySelector("#pcUserInfoArea");
+              const hasClass = !!document.querySelector("[class*='PcUserInfo_loginButton']");
+              return "innerWidth=" + w + ", pcUserInfoArea=" + hasPc
+                + ", PcUserInfo_loginButton=" + hasClass
+                + ", path=" + (window.location.pathname || "");
+            })()
+            """)
+            logger.warning("登录入口诊断: %s", diag)
+            raise OKElementNotFound(
+                "找不到登录入口。若为窄窗口或开启了移动设备模拟，请拉宽浏览器窗口或关闭 Device Toolbar 后重试。"
+                f" 诊断: {diag}"
+            )
+        logger.info("已通过 JS 兜底点击登录入口: %s", via)
+
     short_delay()
 
-    deadline = time.monotonic() + 10
+    deadline = time.monotonic() + 12
     while time.monotonic() < deadline:
         if bridge.has_element(sel.LOGIN_MODAL):
             return
@@ -84,15 +152,21 @@ def _dismiss_cookie_banner(bridge: BaseClient) -> None:
 
 
 def _fill_email(bridge: BaseClient, email: str) -> None:
-    """在登录弹窗中填入邮箱"""
-    bridge.wait_for_selector(sel.LOGIN_EMAIL_INPUT, timeout=10000)
-    bridge.click_element(sel.LOGIN_EMAIL_INPUT)
-    short_delay()
+    """在登录弹窗中填入邮箱（严格限定在 modal 内）。"""
+    bridge.wait_for_selector(sel.LOGIN_MODAL, timeout=10000)
 
-    bridge.evaluate(f"""
+    value = bridge.evaluate(f"""
     (() => {{
-        const input = document.querySelector("{sel.LOGIN_EMAIL_INPUT}");
-        if (!input) return;
+        const modal = document.querySelector("{sel.LOGIN_MODAL}");
+        if (!modal) return null;
+
+        let input = modal.querySelector("{sel.LOGIN_EMAIL_INPUT}");
+        if (!input) {{
+            input = modal.querySelector("input[type='email'], input[type='text'], input[type='tel']");
+        }}
+        if (!input) return null;
+
+        input.focus();
         const setter = Object.getOwnPropertyDescriptor(
             window.HTMLInputElement.prototype, 'value'
         ).set;
@@ -100,38 +174,140 @@ def _fill_email(bridge: BaseClient, email: str) -> None:
         input.dispatchEvent(new Event('input', {{ bubbles: true }}));
         setter.call(input, '{email}');
         input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+        input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+        input.dispatchEvent(new KeyboardEvent('keyup', {{ bubbles: true, key: 'a' }}));
+        input.blur();
+        return input.value || '';
     }})()
     """)
+
+    if not value:
+        raise OKElementNotFound("邮箱输入框未找到或输入失败")
+
     short_delay()
 
 
 def _click_continue(bridge: BaseClient) -> None:
-    """点击 Continue 按钮"""
-    bridge.wait_for_selector(sel.LOGIN_CONTINUE_BTN, timeout=5000)
-    bridge.click_element(sel.LOGIN_CONTINUE_BTN)
+    """点击 Continue 按钮（兼容不同 class 命名）。"""
+    # 先尝试原始选择器
+    if bridge.has_element(sel.LOGIN_CONTINUE_BTN):
+        bridge.click_element(sel.LOGIN_CONTINUE_BTN)
+        medium_delay()
+        short_delay()
+        return
+
+    # 兜底：在登录弹窗内按按钮文案/属性查找
+    clicked = bridge.evaluate("""
+    (() => {
+      const modal = document.querySelector("[class*='LoginPC_loginContainer']") || document;
+      const btns = modal.querySelectorAll("button");
+      for (const b of btns) {
+        const t = (b.textContent || "").trim().toLowerCase();
+        const aria = (b.getAttribute("aria-label") || "").trim().toLowerCase();
+        if (["continue", "next", "继续"].includes(t) || ["continue", "next", "继续"].includes(aria)) {
+          if (!b.disabled) {
+            b.click();
+            return true;
+          }
+        }
+      }
+
+      // 最后兜底：找 form 内第一个可点 submit/button
+      const form = modal.querySelector("form");
+      if (form) {
+        let b = form.querySelector("button[type='submit']");
+        if (!b) b = form.querySelector("button");
+        if (b && !b.disabled) {
+          b.click();
+          return true;
+        }
+      }
+      return false;
+    })()
+    """)
+    if not clicked:
+        raise OKElementNotFound("找不到 Continue 按钮")
+
+    # 某些页面点击后过渡较慢，适度延长等待
     medium_delay()
+    short_delay()
+
+
+def _dump_modal_diagnostics(bridge: BaseClient) -> str:
+    """导出当前登录弹窗的结构摘要，便于定位分支卡点。"""
+    diag = bridge.evaluate("""
+    (() => {
+      const modal = document.querySelector("[class*='LoginPC_loginContainer']");
+      if (!modal) return "modal-missing";
+
+      const titleNodes = modal.querySelectorAll("span, div, h1, h2, h3");
+      const titles = [];
+      for (const el of titleNodes) {
+        const t = (el.textContent || "").trim();
+        if (t && t.length <= 80) titles.push(t);
+        if (titles.length >= 8) break;
+      }
+
+      const inputs = [];
+      for (const el of modal.querySelectorAll("input")) {
+        inputs.push({
+          type: el.type || "",
+          placeholder: el.placeholder || "",
+          value: el.value || "",
+        });
+      }
+
+      const buttons = [];
+      for (const el of modal.querySelectorAll("button")) {
+        buttons.push({
+          text: (el.textContent || "").trim(),
+          disabled: !!el.disabled,
+          cls: (el.className || "").toString().slice(0, 120),
+        });
+      }
+
+      return JSON.stringify({ titles, inputs, buttons });
+    })()
+    """)
+    return diag or "diag-empty"
 
 
 def _wait_for_password_page(bridge: BaseClient, timeout: float = 10) -> str:
-    """等待密码输入页面出现，返回页面类型 'login' 或 'register'
-
-    通过检测页面特征判断：
-    - WelcomeTip_welcomeTitle 存在 → 已注册用户，登录页
-    - ValidAccount_title 包含 'friend' / 'new' → 新用户，注册页
-    """
+    """等待下一步页面出现，返回 ``login`` / ``register`` / ``verify_code``。"""
     deadline = time.monotonic() + timeout
+    last_diag = ""
     while time.monotonic() < deadline:
         page_type = bridge.evaluate("""
         (() => {
             const modal = document.querySelector("[class*='LoginPC_loginContainer']");
             if (!modal) return '';
+
+            const shortTexts = Array.from(modal.querySelectorAll('span, div, h1, h2, h3, p'))
+              .map((el) => (el.textContent || '').trim().toLowerCase())
+              .filter(Boolean)
+              .slice(0, 30);
+            const joined = shortTexts.join(' ');
+
+            if (joined.includes('verification code') || joined.includes('enter code') || joined.includes('resend')) {
+                return 'verify_code:Verification code';
+            }
+
             const welcomeTitle = modal.querySelector("[class*='WelcomeTip_welcomeTitle']");
-            if (welcomeTitle) return 'login:' + welcomeTitle.textContent.trim();
+            if (welcomeTitle) {
+                const raw = (welcomeTitle.textContent || '').trim();
+                const text = raw.toLowerCase();
+                if (text.includes('new friend') || text.includes('new') || text.includes('create')) {
+                    return 'register:' + raw;
+                }
+                return 'login:' + raw;
+            }
             const registerTitle = modal.querySelector("[class*='ValidAccount_title']");
             if (registerTitle) {
-                const text = registerTitle.textContent.trim().toLowerCase();
-                if (text.includes('friend') || text.includes('new') || text.includes('create'))
-                    return 'register:' + registerTitle.textContent.trim();
+                const raw = (registerTitle.textContent || '').trim();
+                const text = raw.toLowerCase();
+                if (text.includes('friend') || text.includes('new') || text.includes('create')) {
+                    return 'register:' + raw;
+                }
             }
             const pwdInput = modal.querySelector("input[type='password']");
             if (pwdInput) return 'login:(password input found)';
@@ -139,15 +315,20 @@ def _wait_for_password_page(bridge: BaseClient, timeout: float = 10) -> str:
         })()
         """)
         if page_type:
+            if page_type.startswith("verify_code:"):
+                logger.info("检测到验证码页面: %s", page_type[12:])
+                return "verify_code"
             if page_type.startswith("register:"):
                 logger.info("检测到注册页面: %s", page_type[9:])
                 return "register"
-            elif page_type.startswith("login:"):
+            if page_type.startswith("login:"):
                 logger.info("检测到登录页面: %s", page_type[6:])
                 return "login"
+        last_diag = _dump_modal_diagnostics(bridge)
         time.sleep(0.3)
 
-    raise OKTimeout("密码输入页面未出现")
+    logger.warning("密码页诊断: %s", last_diag)
+    raise OKTimeout(f"密码输入页面未出现。诊断: {last_diag}")
 
 
 def _fill_password_and_submit(bridge: BaseClient, password: str) -> None:
@@ -253,6 +434,75 @@ def _get_login_error(bridge: BaseClient) -> str | None:
     return err
 
 
+def _infer_subdomain_from_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    m = re.search(r"https?://([a-z]+)\.ok\.com", url)
+    if not m:
+        return None
+    return m.group(1).lower()
+
+
+def _probe_target_url_for_subdomain(subdomain: str) -> str:
+    """为探测固定子域构建稳定城市页 URL。"""
+    sub = subdomain.lower()
+    if sub == "ae":
+        return "https://ae.ok.com/en/city-dubai/"
+    if sub == "uk":
+        return "https://uk.ok.com/en/city-london/"
+    if sub == "au":
+        return "https://au.ok.com/en/city-canberra/"
+    return f"https://{sub}.ok.com/en/"
+
+
+def _probe_email_on_current_site(
+    bridge: BaseClient,
+    email: str,
+    keep_modal_open: bool = False,
+) -> str:
+    """在当前站点只探测邮箱分支，不提交密码。
+
+    Returns:
+        "login" | "register"
+    """
+    _dismiss_cookie_banner(bridge)
+    _open_login_modal(bridge)
+    _fill_email(bridge, email)
+    _click_continue(bridge)
+    branch = _wait_for_password_page(bridge)
+    if not keep_modal_open:
+        _close_login_modal(bridge)
+    return branch
+
+
+def _probe_email_across_sites(
+    bridge: BaseClient,
+    email: str,
+    probe_subdomains: list[str],
+) -> list[dict]:
+    """跨站点探测邮箱归属（仅探测，不提交密码）。"""
+    results: list[dict] = []
+    for sub in probe_subdomains:
+        sub = (sub or "").strip().lower()
+        if not sub:
+            continue
+        target = _probe_target_url_for_subdomain(sub)
+        try:
+            bridge.navigate(target)
+            bridge.wait_dom_stable(timeout=10000, interval=500)
+            branch = _probe_email_on_current_site(bridge, email, keep_modal_open=True)
+            results.append({"subdomain": sub, "branch": branch, "url": target})
+            logger.info("跨站点探测: %s -> %s", sub, branch)
+            if branch == "login":
+                break
+            _close_login_modal(bridge)
+        except Exception as e:
+            results.append({"subdomain": sub, "branch": "unknown", "error": str(e), "url": target})
+            logger.warning("跨站点探测失败: %s -> %s", sub, e)
+
+    return results
+
+
 # ─── 对外暴露的登录函数 ─────────────────────────────────────
 
 
@@ -260,24 +510,17 @@ def login_with_email(
     bridge: BaseClient,
     email: str,
     password: str,
+    probe_subdomains: list[str] | None = None,
 ) -> dict:
-    """通过邮箱密码登录 OK.com
+    """通过邮箱密码登录 OK.com。
 
-    完整流程：
-    1. 关闭 Cookie 横幅
-    2. 点击 'Log in / Register' 打开弹窗
-    3. 填入邮箱 → 点击 Continue
-    4. 等待密码页面 → 填入密码 → 点击 Login/Register
-    5. 等待登录成功
-
-    Args:
-        bridge: 浏览器客户端
-        email: 邮箱地址
-        password: 密码
-
-    Returns:
-        {"logged_in": bool, "account_type": "login"|"register", "message": str}
+    当当前站点把邮箱判定为注册页时，可自动在指定子域（默认 ae/uk/au）做无密码探测，
+    找到登录页后自动切换并继续登录。
     """
+    # 等待页面 DOM 稳定（确保 React 完成 hydration）
+    bridge.wait_dom_stable(timeout=10000, interval=500)
+    logger.info("页面 DOM 已稳定")
+
     # 关闭可能存在的 Cookie 横幅
     _dismiss_cookie_banner(bridge)
 
@@ -290,20 +533,62 @@ def login_with_email(
             "message": f"已登录: {status['user_name'] or '(未知用户)'}",
         }
 
-    # 打开登录弹窗
-    _open_login_modal(bridge)
-    logger.info("登录弹窗已打开")
+    original_url = bridge.get_url() or ""
+    original_subdomain = _infer_subdomain_from_url(original_url)
 
-    # 填入邮箱并点击 Continue
-    _fill_email(bridge, email)
-    _click_continue(bridge)
-    logger.info("已输入邮箱 %s 并点击 Continue", email)
+    # 先在当前站点探测邮箱分支（保留弹窗，若为登录页可直接输密码）
+    account_type = _probe_email_on_current_site(bridge, email, keep_modal_open=True)
+    logger.info("当前站点账号类型: %s", account_type)
 
-    # 等待密码页面出现，判断是登录还是注册
-    account_type = _wait_for_password_page(bridge)
-    logger.info("账号类型: %s", account_type)
+    probe_results: list[dict] = []
 
-    # 填入密码并提交
+    # 命中注册分支时，做跨站点探测（ae/uk/au）
+    if account_type == "register":
+        subs = probe_subdomains or ["ae", "uk", "au"]
+        probe_results = _probe_email_across_sites(bridge, email, subs)
+
+        login_hit = next((r for r in probe_results if r.get("branch") == "login"), None)
+        verify_hit = next((r for r in probe_results if r.get("branch") == "verify_code"), None)
+
+        if login_hit:
+            account_type = "login"
+            logger.info("已自动切换到 %s 继续登录", login_hit.get("subdomain"))
+        elif verify_hit:
+            account_type = "verify_code"
+            logger.info("已自动切换到 %s，命中验证码登录分支", verify_hit.get("subdomain"))
+            return {
+                "logged_in": False,
+                "account_type": "verify_code",
+                "message": "当前账号进入邮箱验证码登录流程，请输入验证码后继续",
+                "site_hint": {
+                    "current_subdomain": _infer_subdomain_from_url(bridge.get_url()),
+                    "probes": probe_results,
+                },
+            }
+        else:
+            msg = "该邮箱在 ae/uk/au 均被判定为新账号，请确认是否需要先注册"
+            return {
+                "logged_in": False,
+                "account_type": "register",
+                "message": msg,
+                "site_hint": {
+                    "current_subdomain": original_subdomain,
+                    "probes": probe_results,
+                },
+            }
+
+    if account_type == "verify_code":
+        return {
+            "logged_in": False,
+            "account_type": "verify_code",
+            "message": "当前账号进入邮箱验证码登录流程，请输入验证码后继续",
+            "site_hint": {
+                "current_subdomain": _infer_subdomain_from_url(bridge.get_url()),
+                "probes": probe_results,
+            },
+        }
+
+    # 进入密码登录流程（当前页面应已是目标站点）
     _fill_password_and_submit(bridge, password)
     logger.info("已输入密码并提交")
 
@@ -315,6 +600,10 @@ def login_with_email(
             "logged_in": False,
             "account_type": account_type,
             "message": f"登录失败: {err}",
+            "site_hint": {
+                "current_subdomain": _infer_subdomain_from_url(bridge.get_url()),
+                "probes": probe_results,
+            },
         }
 
     # 等待登录成功
@@ -322,11 +611,19 @@ def login_with_email(
 
     if success:
         final_status = check_login(bridge)
+        current_sub = _infer_subdomain_from_url(bridge.get_url())
+        switched = bool(original_subdomain and current_sub and original_subdomain != current_sub)
         return {
             "logged_in": True,
             "account_type": account_type,
             "user_name": final_status.get("user_name"),
-            "message": "登录成功" if account_type == "login" else "注册并登录成功",
+            "message": "登录成功",
+            "site_hint": {
+                "original_subdomain": original_subdomain,
+                "current_subdomain": current_sub,
+                "auto_switched": switched,
+                "probes": probe_results,
+            },
         }
 
     # 再次检查错误
@@ -335,6 +632,10 @@ def login_with_email(
         "logged_in": False,
         "account_type": account_type,
         "message": f"登录超时{': ' + err if err else ''}",
+        "site_hint": {
+            "current_subdomain": _infer_subdomain_from_url(bridge.get_url()),
+            "probes": probe_results,
+        },
     }
 
 

@@ -68,7 +68,10 @@ USER_AVATAR = "[class*='avatar'], [class*='Avatar'], [class*='userIcon']"
 USER_NAME = "[class*='userName'], [class*='user-name']"
 
 # ─── 登录弹窗流程 ─────────────────────────────────────────
+# PC 顶栏（宽屏）；窄屏 / 移动 UA 时可能整段不出现，需配合 login.py 内文本兜底
 LOGIN_TRIGGER = "#pcUserInfoArea [class*='PcUserInfo_loginButton']"
+# 不依赖 #pcUserInfoArea，只要页面上有该类名即可（部分布局下父级 id 不同）
+LOGIN_TRIGGER_ANY = "[class*='PcUserInfo_loginButton']"
 LOGIN_MODAL = "[class*='LoginPC_loginContainer']"
 LOGIN_MODAL_CLOSE = "[class*='TopBar_closeBtn']"
 LOGIN_MODAL_BACK = "[class*='TopBar_backBtn']"

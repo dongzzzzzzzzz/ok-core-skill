@@ -27,6 +27,21 @@ metadata:
 - **唯一执行方式**：只运行 `uv run python scripts/cli.py <子命令>`
 - **完成即止**：任务完成后直接告知结果，等待用户下一步指令
 
+## 运行模式（Bridge / Playwright）
+
+本技能支持两种运行模式：
+
+1. **Bridge 模式（推荐）**：连接本地 Chrome 扩展 `OK Bridge`，在用户真实浏览器里执行。
+2. **Playwright 模式（免扩展）**：未检测到 Bridge 时自动降级到 Playwright 静默浏览器。
+
+首次使用 Playwright 前需要安装浏览器：
+
+```bash
+uv run playwright install chromium
+```
+
+如果看到报错包含 `Executable doesn't exist` 或 `playwright install`，说明浏览器未安装。
+
 ---
 
 ## 输入判断

@@ -182,13 +182,31 @@ def _ensure_on_ok(client, country="singapore", lang="en"):
         except Exception:
             subdomain = "sg"
         client.navigate(build_base_url(subdomain, lang, country))
-        client.wait_dom_stable()
+    client.wait_dom_stable()
+
+
+def _ensure_city_home_for_auth(client, country="singapore", lang="en"):
+    """登录/鉴权需要标准城市壳页面；/yun/ 等路径无顶栏登录入口，必须跳转。"""
+    from ok.urls import build_base_url, is_city_shell_url
+
+    try:
+        from ok.locale import get_country_info
+
+        info = get_country_info(country)
+        subdomain = info["subdomain"]
+    except Exception:
+        subdomain = "sg"
+    target = build_base_url(subdomain, lang, country)
+    url = client.get_url() or ""
+    if not is_city_shell_url(url):
+        client.navigate(target)
+    client.wait_dom_stable()
 
 
 def cmd_check_login(args):
     """检查登录状态"""
     client = get_client()
-    _ensure_on_ok(client, getattr(args, "country", "singapore"))
+    _ensure_city_home_for_auth(client, getattr(args, "country", "singapore"))
 
     from ok.login import check_login
     status = check_login(client)
@@ -198,10 +216,10 @@ def cmd_check_login(args):
 def cmd_login(args):
     """通过邮箱密码登录"""
     client = get_client()
-    _ensure_on_ok(client, getattr(args, "country", "singapore"))
+    _ensure_city_home_for_auth(client, getattr(args, "country", "singapore"))
 
     from ok.login import login_with_email
-    result = login_with_email(client, args.email, args.password)
+    result = login_with_email(client, args.email, args.password, probe_subdomains=["ae", "uk", "au"])
     exit_code = 0 if result.get("logged_in") else 2
     _output(result, exit_code)
 
@@ -209,7 +227,7 @@ def cmd_login(args):
 def cmd_wait_login(args):
     """等待用户手动完成登录（OAuth 等）"""
     client = get_client()
-    _ensure_on_ok(client, getattr(args, "country", "singapore"))
+    _ensure_city_home_for_auth(client, getattr(args, "country", "singapore"))
 
     from ok.login import wait_for_login
     result = wait_for_login(client, timeout=args.timeout)

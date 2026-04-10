@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+import re
+
+
+def is_city_shell_url(url: str) -> bool:
+    """是否为带 ``/lang/city-{slug}/`` 的标准城市壳（列表、详情等子路径也算）。"""
+    if "ok.com" not in url:
+        return False
+    return bool(re.search(r"ok\.com/[^/]+/city-[^/]+/", url))
+
 
 def build_base_url(subdomain: str, lang: str = "en", city: str | None = None) -> str:
     """构建基础 URL

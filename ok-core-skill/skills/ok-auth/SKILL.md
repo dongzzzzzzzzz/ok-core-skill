@@ -20,6 +20,9 @@ uv run python scripts/cli.py login --email "user@example.com" --password "yourpa
 
 # 等待用户手动完成 OAuth 登录（如 Google/Facebook/Apple）
 uv run python scripts/cli.py wait-login --timeout 120
+
+# （可选）仅使用 Playwright 时，首次安装浏览器
+uv run playwright install chromium
 ```
 
 ## 参数说明

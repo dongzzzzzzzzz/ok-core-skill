@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Type
 
 from .base import BaseClient
 from .bridge import BridgeClient, BRIDGE_PORT
@@ -45,8 +44,17 @@ def get_client() -> BaseClient:
     logger.info("⚠️ 未检测到运行中的 Chrome 插件开发桥，降级使用 [Playwright 静默隐身浏览器] 进行操作...")
     try:
         from .playwright_client import PlaywrightClient
+
         _client_instance = PlaywrightClient()
         return _client_instance
     except ImportError as e:
         logger.error("初始化 Playwright 失败。请确保按要求安装了依赖 `uv sync` => %s", e)
+        raise
+    except Exception as e:
+        msg = str(e)
+        if "Executable doesn't exist" in msg or "playwright install" in msg:
+            raise RuntimeError(
+                "未检测到 Chrome Bridge，且 Playwright 浏览器未安装。"
+                "请先执行: uv run playwright install chromium"
+            ) from e
         raise
