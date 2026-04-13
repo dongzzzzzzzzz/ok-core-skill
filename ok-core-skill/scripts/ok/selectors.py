@@ -26,10 +26,15 @@ CARD_IMAGE = "img"
 DETAIL_TITLE = "h1"
 DETAIL_PRICE = "[class*='price'], [class*='Price']"
 DETAIL_DESCRIPTION = "[class*='description'], [class*='Description'], [class*='detail-content']"
-DETAIL_SELLER = "[class*='seller'], [class*='Seller'], [class*='user-name']"
+DETAIL_SELLER = (
+    "[class*='agencyUserInfoName'], [class*='AgencyCard'] [class*='Name'], "
+    "[class*='seller'], [class*='Seller'], [class*='user-name']"
+)
 DETAIL_LOCATION = "[class*='location'], [class*='Location'], [class*='address']"
-DETAIL_IMAGES = "[class*='gallery'] img, [class*='slider'] img, [class*='swiper'] img"
+DETAIL_IMAGES = "img[loading='lazy']"
 DETAIL_TIME = "[class*='time'], [class*='Time'], [class*='date']"
+DETAIL_FEATURE_ITEM = "[class*='MainInfo_item'], [class*='featureItem'], [class*='FeatureItem']"
+DETAIL_FEATURE_VALUE = "[class*='value'], [class*='Value']"
 DETAIL_CATEGORY = "[class*='Breadcrumb'] a, [class*='breadcrumb'] a"
 DETAIL_CONTACT_BTN = "[class*='applyButton'], [class*='contact'], button[class*='message']"
 

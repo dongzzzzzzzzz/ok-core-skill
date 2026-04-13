@@ -60,6 +60,7 @@ class ListingDetail:
     listing_id: str | None = None
     category: str | None = None
     posted_time: str | None = None
+    features: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
