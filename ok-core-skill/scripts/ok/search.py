@@ -3,17 +3,53 @@
 from __future__ import annotations
 
 import logging
-import time
+import re
 
 from . import selectors as sel
 from .client.base import BaseClient
-from .errors import OKElementNotFound, OKTimeout
+from .errors import OKElementNotFound
 from .human import medium_delay, short_delay
-from .locale import build_locale, get_country_info
+from .locale import build_locale
 from .types import Listing, SearchResult
 from .urls import build_base_url
 
 logger = logging.getLogger("ok-search")
+
+
+def _parse_price(price_str: str | None) -> float | None:
+    """Extract numeric value from price string like '$2,250,000' or '¥30,000'."""
+    if not price_str:
+        return None
+    digits = re.sub(r"[^\d.]", "", price_str)
+    if not digits:
+        return None
+    try:
+        return float(digits)
+    except ValueError:
+        return None
+
+
+def _filter_by_price(
+    listings: list[Listing],
+    price_min: float | None,
+    price_max: float | None,
+) -> list[Listing]:
+    """Filter listings by price range. Keeps items with unparseable prices."""
+    if price_min is None and price_max is None:
+        return listings
+
+    filtered = []
+    for item in listings:
+        val = _parse_price(item.price)
+        if val is None:
+            filtered.append(item)
+            continue
+        if price_min is not None and val < price_min:
+            continue
+        if price_max is not None and val > price_max:
+            continue
+        filtered.append(item)
+    return filtered
 
 
 def search_listings(
@@ -23,6 +59,8 @@ def search_listings(
     city: str = "singapore",
     lang: str = "en",
     max_results: int = 20,
+    price_min: float | None = None,
+    price_max: float | None = None,
 ) -> SearchResult:
     """搜索帖子
 
@@ -33,6 +71,8 @@ def search_listings(
         city: 城市 code
         lang: 语言
         max_results: 最大返回结果数
+        price_min: 最低价格（含），None 表示不限
+        price_max: 最高价格（含），None 表示不限
 
     Returns:
         SearchResult 对象
@@ -64,8 +104,11 @@ def search_listings(
     bridge.wait_dom_stable(timeout=15000)
     medium_delay()
 
-    # 提取搜索结果
-    listings = _extract_listings(bridge, max_results)
+    # 提取搜索结果（多取一些以应对价格过滤后数量减少）
+    fetch_count = max_results * 3 if (price_min or price_max) else max_results
+    listings = _extract_listings(bridge, fetch_count)
+    listings = _filter_by_price(listings, price_min, price_max)
+    listings = listings[:max_results]
 
     result = SearchResult(
         keyword=keyword,

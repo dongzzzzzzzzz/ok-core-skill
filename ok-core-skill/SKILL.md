@@ -31,11 +31,14 @@ metadata:
 
 ## 输入判断
 
-按优先级判断用户意图，路由到对应子技能：
+按优先级判断用户意图，路由到对应处理：
 
+0. **搜索/浏览**（"找夏威夷房源 / 搜索东京的工作 / 温哥华二手车 / 夏威夷50万以下的房子 / 搜索帖子 / 浏览分类"）→ 涉及搜索或浏览分类 → 执行 `ok-search` 技能
 1. **地区切换**（"切换到新加坡 / 切换城市 / 列出国家 / 列出城市"）→ 执行 `ok-locale` 技能
-2. **搜索浏览**（"搜索帖子 / 浏览分类 / 首页推荐 / 查看详情"）→ 执行 `ok-explore` 技能
+2. **推荐/详情**（"首页推荐 / 查看帖子详情"）→ 执行 `ok-explore` 技能
 3. **登录检测**（"检查登录 / 登录状态"）→ 执行 `ok-auth` 技能
+
+---
 
 ## 全局约束
 
@@ -43,10 +46,23 @@ metadata:
 - CLI 输出为 JSON 格式，结构化呈现给用户
 - 操作频率不宜过高，保持合理间隔
 - ok.com 是多国家平台，注意确认用户需要的国家和城市
+- **`--country` 和 `--city` 在 search / browse-category / list-feeds 中默认值为 singapore，搜索其他地区时必须显式传入**
 
 ---
 
 ## 子技能概览
+
+### ok-search — 搜索与浏览（唯一入口）
+
+所有搜索帖子、浏览分类的请求均由此技能处理。完整 5 步流程：解析意图 → 定位城市 → 切换地区 → 搜索/浏览 → 展示结果。支持价格区间筛选。
+
+| 步骤 | 说明 |
+|------|------|
+| 1. 解析意图 | 从自然语言提取国家、城市、内容类型（中文→英文映射） |
+| 2. 定位城市 | `cli.py list-cities --country <国家> --mode search --keyword <城市>` |
+| 3. 切换地区 | `cli.py set-locale --country <国家> --city <城市code>` |
+| 4. 搜索/浏览 | `cli.py browse-category` 或 `cli.py search`（必须传 --country --city） |
+| 5. 展示结果 | 结构化列表 + 详情链接 |
 
 ### ok-locale — 多国家/城市/语言管理
 
@@ -60,15 +76,13 @@ metadata:
 | `cli.py set-locale --country <国家> --city <城市>` | 切换到指定地区 |
 | `cli.py get-locale` | 获取当前地区 |
 
-### ok-explore — 搜索与浏览
+### ok-explore — 首页推荐与帖子详情
 
-搜索帖子、浏览分类、获取详情。
+获取首页 feed 流和单条帖子完整详情。搜索/浏览分类请用 ok-search。
 
 | 命令 | 功能 |
 |------|------|
-| `cli.py search --keyword <关键词>` | 搜索帖子 |
-| `cli.py list-feeds` | 获取首页推荐 |
-| `cli.py browse-category --category <分类>` | 按分类浏览 |
+| `cli.py list-feeds --country <国家> --city <城市>` | 获取首页推荐 |
 | `cli.py get-listing --url <URL>` | 获取帖子详情 |
 
 ### ok-auth — 登录检测

@@ -45,6 +45,9 @@ known-first-party = ["ok_skills"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["scripts"]
+markers = [
+    "browser: tests that require a browser environment (Bridge/CDP/Playwright)",
+]
 
 [dependency-groups]
 dev = [

@@ -1,51 +1,37 @@
 ---
 name: ok-explore
 description: |
-  OK.com 内容发现技能。搜索帖子、浏览分类、获取详情、首页推荐。
+  OK.com 首页推荐与帖子详情。获取首页 feed 流、查看单条帖子完整详情。
+  搜索帖子和浏览分类请使用 ok-search 技能。
 ---
 
-# ok-explore — 搜索与浏览
+# ok-explore — 首页推荐与帖子详情
 
-搜索、浏览和获取 OK.com 帖子信息。所有操作支持指定国家和城市。
+获取 OK.com 首页推荐 feed 和单条帖子的完整详情。
+
+> 搜索帖子、浏览分类、价格筛选等操作请使用 **ok-search** 技能。
 
 ## 命令
 
 ```bash
-# 搜索帖子
-uv run python scripts/cli.py search --keyword "laptop" --country singapore --city singapore
-uv run python scripts/cli.py search --keyword "apartment" --country canada --city toronto --max-results 10
-
-# 获取首页推荐
+# 获取首页推荐（必须传 --country 和 --city，默认 singapore）
 uv run python scripts/cli.py list-feeds --country singapore --city singapore
-uv run python scripts/cli.py list-feeds --country canada --city vancouver --max-results 10
+uv run python scripts/cli.py list-feeds --country usa --city hawaii --max-results 10
 
-# 按分类浏览
-uv run python scripts/cli.py browse-category --category marketplace --country singapore --city singapore
-uv run python scripts/cli.py browse-category --category jobs --country canada --city toronto
-
-# 获取帖子详情
-uv run python scripts/cli.py get-listing --url "https://sg.ok.com/en/city-singapore/cate-xxx/slug/"
+# 获取帖子详情（传入帖子 URL）
+uv run python scripts/cli.py get-listing --url "https://us.ok.com/en/city-hawaii/cate-property/slug/"
 ```
-
-## 主要分类 code
-
-| 分类 | Code |
-|------|------|
-| 市场 | `marketplace` |
-| 工作 | `jobs` |
-| 房产 | `property` |
-| 汽车 | `cars` |
-| 服务 | `services` |
-| 社区 | `community` |
-
-> 完整分类可通过 `list-categories --country <国家>` 动态获取。
 
 ## 参数说明
 
-- `--keyword`: 搜索关键词
-- `--category`: 分类 code
-- `--country`: 国家（默认 `singapore`）
-- `--city`: 城市（默认 `singapore`）
+- `--country`: 国家（默认 `singapore`，其他地区必须显式传入）
+- `--city`: 城市 code（默认 `singapore`，其他地区必须显式传入）
 - `--lang`: 语言（默认 `en`）
-- `--max-results`: 最大结果数（默认 20）
-- `--url`: 帖子 URL（用于 get-listing）
+- `--max-results`: 最大结果数（默认 20，仅 `list-feeds`）
+- `--url`: 帖子 URL（仅 `get-listing`）
+
+## 详情展示
+
+`get-listing` 返回的 JSON 包含以下字段，结构化展示给用户：
+
+标题、价格、描述（前 200 字）、卖家名称、发布时间、图片链接、分类面包屑。

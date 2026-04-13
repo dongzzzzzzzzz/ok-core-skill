@@ -8,20 +8,24 @@ description: |
 
 管理 OK.com 的区域设置。国家为固定列表，城市和分类通过 API 动态获取。
 
+## 执行约束（强制）
+
+所有操作只能通过 `uv run python scripts/cli.py` 执行，**禁止自行编写代码或直接调用 API**。
+
 ## 命令
 
 ```bash
 # 列出支持的国家
 uv run python scripts/cli.py list-countries
 
-# 动态获取城市列表
-uv run python scripts/cli.py list-cities --country usa --mode search --keyword 'new york'
+# 搜索城市（推荐方式，能找到小城市）
+uv run python scripts/cli.py list-cities --country usa --mode search --keyword hawaii
 
 # 动态获取分类树
 uv run python scripts/cli.py list-categories --country singapore
 
 # 切换到指定地区
-uv run python scripts/cli.py set-locale --country singapore --city singapore --lang en
+uv run python scripts/cli.py set-locale --country usa --city hawaii
 uv run python scripts/cli.py set-locale --country canada --city toronto
 
 # 获取当前地区
@@ -30,15 +34,46 @@ uv run python scripts/cli.py get-locale
 
 ## 参数说明
 
-- `--country`: 国家名（如 `singapore`）、子域名（如 `sg`）或 ISO code（如 `SG`）
-- `--city`: 城市 code（可从 `list-cities` 获取，如 `singapore`, `toronto`, `bedok`）
+- `--country`: 国家名（如 `usa`）、子域名（如 `us`）或 ISO code（如 `US`）
+- `--city`: 城市 code（从 `list-cities` 返回的 `code` 字段获取）
 - `--lang`: 语言代码（默认 `en`）
-- `--keyword`: 搜索关键词（城市名，用于搜索城市，如`hawaii`）
+- `--keyword`: 搜索关键词（城市英文名，如 `hawaii`、`new york`）
+- `--mode`: 获取方式 — `search`（推荐）、`api`（仅热门城市）、`all`（合并两者）
 
-## 工作流
+## 城市查找（推荐流程）
 
-1. 先用 `list-countries` 确定目标国家
-2. 用 `list-cities --country <国家>` 获取可用城市
-3. 如果没有找到，可以用 `list-cities --country <国家> --mode search --keyword <城市关键词>` 搜索
-4. 用 `set-locale` 切换到目标地区
-5. 后续搜索/浏览操作使用对应的 `--country` `--city` 参数
+**直接用 search 模式**（不要先跑 api 模式，因为小城市不在 allCities 列表里）：
+
+1. 搜索城市：
+   ```bash
+   uv run python scripts/cli.py list-cities --country usa --mode search --keyword hawaii
+   ```
+2. 从返回 JSON 的 `cities` 数组中选取 `name` 最匹配的，记下其 `code` 字段
+3. 注意：州名和城市名可能不同（如用户说"夏威夷"，搜索 `hawaii` 可能返回 `hawaii` 或 `honolulu`）
+4. 如果结果为空，尝试缩短关键词（如 `hawaii` → `hawa`）；仍然为空则告知用户
+5. 切换地区：
+   ```bash
+   uv run python scripts/cli.py set-locale --country usa --city <city_code>
+   ```
+
+## 常见中文地名映射
+
+| 用户说的 | --country | --keyword | 可能的 city code |
+|---------|-----------|-----------|-----------------|
+| 夏威夷 | usa | hawaii | hawaii, honolulu |
+| 纽约 | usa | new york | new-york |
+| 洛杉矶 | usa | los angeles | los-angeles |
+| 温哥华 | canada | vancouver | vancouver |
+| 多伦多 | canada | toronto | toronto |
+| 新加坡 | singapore | singapore | singapore |
+| 迪拜 | uae | dubai | dubai |
+| 东京 | japan | tokyo | tokyo |
+| 悉尼 | australia | sydney | sydney |
+| 香港 | hong_kong | hong kong | hong-kong |
+| 吉隆坡 | malaysia | kuala lumpur | kuala-lumpur |
+| 伦敦 | uk | london | london |
+| 奥克兰 | new_zealand | auckland | auckland |
+
+## 支持的国家
+
+singapore, canada, usa, uae, australia, hong_kong, japan, uk, malaysia, new_zealand

@@ -151,12 +151,17 @@ def cmd_search(args):
         city=args.city,
         lang=args.lang,
         max_results=args.max_results,
+        price_min=args.price_min,
+        price_max=args.price_max,
     )
-    _output({
+    out = {
         "keyword": result.keyword,
         "total": result.total_count,
         "listings": [asdict(l) for l in result.listings],
-    })
+    }
+    if args.price_min is not None or args.price_max is not None:
+        out["price_filter"] = {"min": args.price_min, "max": args.price_max}
+    _output(out)
 
 
 def cmd_list_feeds(args):
@@ -198,12 +203,17 @@ def cmd_browse_category(args):
         city=args.city,
         lang=args.lang,
         max_results=args.max_results,
+        price_min=args.price_min,
+        price_max=args.price_max,
     )
-    _output({
+    out = {
         "category": args.category,
         "total": len(listings),
         "listings": [asdict(l) for l in listings],
-    })
+    }
+    if args.price_min is not None or args.price_max is not None:
+        out["price_filter"] = {"min": args.price_min, "max": args.price_max}
+    _output(out)
 
 
 def cmd_check_login(args):
@@ -273,6 +283,8 @@ def main():
     p.add_argument("--city", default="singapore", help="城市（默认 singapore）")
     p.add_argument("--lang", default="en", help="语言（默认 en）")
     p.add_argument("--max-results", type=int, default=20, help="最大结果数（默认 20）")
+    p.add_argument("--min-price", type=float, default=None, dest="price_min", help="最低价格（含）")
+    p.add_argument("--max-price", type=float, default=None, dest="price_max", help="最高价格（含）")
 
     # list-feeds
     p = subparsers.add_parser("list-feeds", help="获取首页推荐")
@@ -292,6 +304,8 @@ def main():
     p.add_argument("--city", default="singapore", help="城市（默认 singapore）")
     p.add_argument("--lang", default="en", help="语言（默认 en）")
     p.add_argument("--max-results", type=int, default=20, help="最大结果数（默认 20）")
+    p.add_argument("--min-price", type=float, default=None, dest="price_min", help="最低价格（含）")
+    p.add_argument("--max-price", type=float, default=None, dest="price_max", help="最高价格（含）")
 
     # check-login
     subparsers.add_parser("check-login", help="检查登录状态")
