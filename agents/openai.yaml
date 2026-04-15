@@ -1,4 +1,4 @@
 interface:
   display_name: "Property Advisor"
-  short_description: "Trigger for renting, buying, selling, pricing, or evaluating any property-related request"
-  default_prompt: "Use this skill whenever the user asks to rent, buy, sell, compare, price, evaluate, or get recommendations about properties, neighborhoods, buildings, commute, or housing suitability."
+  short_description: "Use for renting, buying, selling, pricing, or evaluating housing and neighborhoods"
+  default_prompt: "Use this skill for housing-related requests such as renting, buying, selling, pricing, comparing listings, choosing neighborhoods, or judging whether an area or building fits the user's living or investment needs."
