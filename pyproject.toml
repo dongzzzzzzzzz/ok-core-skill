@@ -1,6 +1,6 @@
 [project]
 name = "property-advisor"
-version = "2.1.0"
-description = "房产决策 Skill — 纯决策层，不含数据获取。覆盖全球买房/卖房/租房场景。"
+version = "2.1.1"
+description = "房产决策 Skill — 覆盖租房、买房、卖房、出租、估价、查区域与房源推荐等房产相关需求。"
 requires-python = ">=3.11"
 dependencies = []
