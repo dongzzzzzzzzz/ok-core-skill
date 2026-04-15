@@ -11,15 +11,19 @@ description: |
 
 > 搜索帖子、浏览分类、价格筛选等操作请使用 **ok-search** 技能。
 
+## 执行约束
+
+`<SKILL_DIR>` 是本 SKILL.md 的**上两级目录**（即包含 `pyproject.toml` 的项目根目录）。
+
 ## 命令
 
 ```bash
 # 获取首页推荐（必须传 --country 和 --city，默认 singapore）
-uv run python scripts/cli.py list-feeds --country singapore --city singapore
-uv run python scripts/cli.py list-feeds --country usa --city hawaii --max-results 10
+uv run --project <SKILL_DIR> ok-cli list-feeds --country singapore --city singapore
+uv run --project <SKILL_DIR> ok-cli list-feeds --country usa --city hawaii --max-results 10
 
 # 获取帖子详情（传入帖子 URL）
-uv run python scripts/cli.py get-listing --url "https://us.ok.com/en/city-hawaii/cate-property/slug/"
+uv run --project <SKILL_DIR> ok-cli get-listing --url "https://us.ok.com/en/city-hawaii/cate-property/slug/"
 ```
 
 ## 参数说明

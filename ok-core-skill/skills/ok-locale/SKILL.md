@@ -10,26 +10,28 @@ description: |
 
 ## 执行约束（强制）
 
-所有操作只能通过 `uv run python scripts/cli.py` 执行，**禁止自行编写代码或直接调用 API**。
+所有操作只能通过 `uv run --project <SKILL_DIR> ok-cli` 执行，**禁止自行编写代码或直接调用 API**。
+
+`<SKILL_DIR>` 是本 SKILL.md 的**上两级目录**（即包含 `pyproject.toml` 的项目根目录）。
 
 ## 命令
 
 ```bash
 # 列出支持的国家
-uv run python scripts/cli.py list-countries
+uv run --project <SKILL_DIR> ok-cli list-countries
 
 # 搜索城市（推荐方式，能找到小城市）
-uv run python scripts/cli.py list-cities --country usa --mode search --keyword hawaii
+uv run --project <SKILL_DIR> ok-cli list-cities --country usa --mode search --keyword hawaii
 
 # 动态获取分类树
-uv run python scripts/cli.py list-categories --country singapore
+uv run --project <SKILL_DIR> ok-cli list-categories --country singapore
 
 # 切换到指定地区
-uv run python scripts/cli.py set-locale --country usa --city hawaii
-uv run python scripts/cli.py set-locale --country canada --city toronto
+uv run --project <SKILL_DIR> ok-cli set-locale --country usa --city hawaii
+uv run --project <SKILL_DIR> ok-cli set-locale --country canada --city toronto
 
 # 获取当前地区
-uv run python scripts/cli.py get-locale
+uv run --project <SKILL_DIR> ok-cli get-locale
 ```
 
 ## 参数说明
@@ -46,14 +48,14 @@ uv run python scripts/cli.py get-locale
 
 1. 搜索城市：
    ```bash
-   uv run python scripts/cli.py list-cities --country usa --mode search --keyword hawaii
+   uv run --project <SKILL_DIR> ok-cli list-cities --country usa --mode search --keyword hawaii
    ```
 2. 从返回 JSON 的 `cities` 数组中选取 `name` 最匹配的，记下其 `code` 字段
 3. 注意：州名和城市名可能不同（如用户说"夏威夷"，搜索 `hawaii` 可能返回 `hawaii` 或 `honolulu`）
 4. 如果结果为空，尝试缩短关键词（如 `hawaii` → `hawa`）；仍然为空则告知用户
 5. 切换地区：
    ```bash
-   uv run python scripts/cli.py set-locale --country usa --city <city_code>
+   uv run --project <SKILL_DIR> ok-cli set-locale --country usa --city <city_code>
    ```
 
 ## 常见中文地名映射

@@ -22,10 +22,16 @@ metadata:
 
 ## 执行约束（强制）
 
-**所有 OK.com 操作只能通过本项目的 `uv run python scripts/cli.py` 完成：**
+**项目根目录**就是本 SKILL.md 所在的目录。读取到本文件后，将其父目录记为 `SKILL_DIR`。
 
-- **唯一执行方式**：只运行 `uv run python scripts/cli.py <子命令>`
-- **完成即止**：任务完成后直接告知结果，等待用户下一步指令
+**唯一执行方式**（从任意工作目录均可运行）：
+
+```bash
+uv run --project <SKILL_DIR> ok-cli <子命令> [参数]
+```
+
+- 第一次运行前，先执行一次 `uv sync --project <SKILL_DIR>` 安装依赖
+- 完成即止：任务完成后直接告知结果，等待用户下一步指令
 
 ---
 
@@ -42,7 +48,6 @@ metadata:
 
 ## 全局约束
 
-- 文件路径必须使用绝对路径
 - CLI 输出为 JSON 格式，结构化呈现给用户
 - 操作频率不宜过高，保持合理间隔
 - ok.com 是多国家平台，注意确认用户需要的国家和城市
@@ -58,7 +63,7 @@ metadata:
 所有搜索帖子、浏览分类的请求均由此技能处理。支持价格区间筛选。
 
 ```bash
-uv run python scripts/cli.py full-search \
+uv run --project <SKILL_DIR> ok-cli full-search \
   --country <国家> --city <城市名> \
   [--category <分类code>] [--keyword <搜索关键词>] \
   [--min-price X] [--max-price Y]
@@ -69,22 +74,22 @@ uv run python scripts/cli.py full-search \
 ### ok-locale — 多国家/城市/语言管理
 
 ```bash
-uv run python scripts/cli.py list-countries
-uv run python scripts/cli.py list-cities --country <国家> --mode search --keyword <城市关键词>
-uv run python scripts/cli.py list-categories --country <国家>
-uv run python scripts/cli.py set-locale --country <国家> --city <城市>
-uv run python scripts/cli.py get-locale
+uv run --project <SKILL_DIR> ok-cli list-countries
+uv run --project <SKILL_DIR> ok-cli list-cities --country <国家> --mode search --keyword <城市关键词>
+uv run --project <SKILL_DIR> ok-cli list-categories --country <国家>
+uv run --project <SKILL_DIR> ok-cli set-locale --country <国家> --city <城市>
+uv run --project <SKILL_DIR> ok-cli get-locale
 ```
 
 ### ok-explore — 首页推荐与帖子详情
 
 ```bash
-uv run python scripts/cli.py list-feeds --country <国家> --city <城市>
-uv run python scripts/cli.py get-listing --url <URL>
+uv run --project <SKILL_DIR> ok-cli list-feeds --country <国家> --city <城市>
+uv run --project <SKILL_DIR> ok-cli get-listing --url <URL>
 ```
 
 ### ok-auth — 登录检测
 
 ```bash
-uv run python scripts/cli.py check-login
+uv run --project <SKILL_DIR> ok-cli check-login
 ```

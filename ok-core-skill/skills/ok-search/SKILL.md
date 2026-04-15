@@ -11,7 +11,8 @@ description: |
 
 ## 执行约束（强制）
 
-- 所有操作只能通过 `uv run python scripts/cli.py` 执行，**禁止自行编写代码或直接调用 API**
+- 所有操作只能通过 `uv run --project <SKILL_DIR> ok-cli` 执行，**禁止自行编写代码或直接调用 API**
+- `<SKILL_DIR>` 是本 SKILL.md 的**上两级目录**（即包含 `pyproject.toml` 的项目根目录）
 - **使用 `full-search` 一站式命令**（单次调用完成全部流程）
 
 ---
@@ -75,7 +76,7 @@ description: |
 ## 步骤 2 — 执行 full-search
 
 ```bash
-uv run python scripts/cli.py full-search \
+uv run --project <SKILL_DIR> ok-cli full-search \
   --country <国家> --city <城市名> \
   [--category <分类code>] [--keyword <搜索关键词>] \
   [--min-price <数值>] [--max-price <数值>] \
@@ -90,16 +91,16 @@ uv run python scripts/cli.py full-search \
 
 ```bash
 # 找夏威夷房源
-uv run python scripts/cli.py full-search --country usa --city hawaii --category property
+uv run --project <SKILL_DIR> ok-cli full-search --country usa --city hawaii --category property
 
 # 夏威夷50万到200万的房子
-uv run python scripts/cli.py full-search --country usa --city hawaii --category property --min-price 500000 --max-price 2000000
+uv run --project <SKILL_DIR> ok-cli full-search --country usa --city hawaii --category property --min-price 500000 --max-price 2000000
 
 # 在新加坡搜索笔记本电脑
-uv run python scripts/cli.py full-search --country singapore --city singapore --keyword "laptop"
+uv run --project <SKILL_DIR> ok-cli full-search --country singapore --city singapore --keyword "laptop"
 
 # 东京的工作
-uv run python scripts/cli.py full-search --country japan --city tokyo --category jobs
+uv run --project <SKILL_DIR> ok-cli full-search --country japan --city tokyo --category jobs
 ```
 
 ---
@@ -115,7 +116,7 @@ uv run python scripts/cli.py full-search --country japan --city tokyo --category
 
 如果用户想看某条帖子的详情：
 ```bash
-uv run python scripts/cli.py get-listing --url "<帖子URL>"
+uv run --project <SKILL_DIR> ok-cli get-listing --url "<帖子URL>"
 ```
 
 ## 结果为空时的处理

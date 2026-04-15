@@ -1,71 +1,58 @@
-"""OK Playwright Client (Headless Fallback)"""
+"""OK Playwright Client — headless with persistent context.
+
+Uses ``launch_persistent_context`` so cookies, localStorage, and
+sessionStorage survive across runs without manual serialisation.
+Profile directory: ``~/.ok-agent/pw-profile/``.
+"""
 
 from __future__ import annotations
 
+import base64
 import logging
+from pathlib import Path
 from typing import Any
 
-from playwright.sync_api import sync_playwright, Page, BrowserContext
+from playwright.sync_api import BrowserContext, Page, sync_playwright
 from playwright_stealth import Stealth
 
 from .base import BaseClient
-from .. import cookies as cookie_utils
 
 logger = logging.getLogger("ok-playwright-client")
 
+_PW_PROFILE_DIR = Path.home() / ".ok-agent" / "pw-profile"
+
 
 class PlaywrightClient(BaseClient):
-    """
-    Playwright 客户端模式。
-    使用 stealth 完全绕过机器人检测，并读取/保存本地域名的 Cookies。
-    全程无头静默运行，不干扰用户原本屏幕。
-    """
+    """Headless Chromium with a persistent profile on disk."""
 
     def __init__(self) -> None:
+        _PW_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+
         self.playwright = sync_playwright().start()
-        self.browser = self.playwright.chromium.launch(
+        self.context: BrowserContext = self.playwright.chromium.launch_persistent_context(
+            str(_PW_PROFILE_DIR),
             headless=True,
             args=[
                 "--disable-blink-features=AutomationControlled",
-                "--disable-infobars"
-            ]
-        )
-        self.context: BrowserContext = self.browser.new_context(
+                "--disable-infobars",
+            ],
             user_agent=(
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
             ),
-            viewport={"width": 1280, "height": 800}
+            viewport={"width": 1280, "height": 800},
         )
 
-        # 加载持久化 cookie
-        saved_cookies = cookie_utils.load_cookies("playwright_fallback")
-        if saved_cookies:
-            # Playwright 要求 url 域或 domain，我们稍作转换处理
-            pw_cookies = []
-            for c in saved_cookies:
-                c.pop("hostOnly", None)
-                c.pop("session", None)
-                c.pop("storeId", None)
-                if c.get("sameSite") == "no_restriction":
-                    c["sameSite"] = "None"
-                elif c.get("sameSite") == "unspecified":
-                    c.pop("sameSite", None)
-                pw_cookies.append(c)
-            try:
-                self.context.add_cookies(pw_cookies)
-            except Exception as e:
-                logger.warning("加载 Playwright Cookie 失败: %s", e)
+        if self.context.pages:
+            self.page: Page = self.context.pages[0]
+        else:
+            self.page = self.context.new_page()
 
-        self.page: Page = self.context.new_page()
         Stealth().apply_stealth_sync(self.page)
-        logger.info("Playwright Client 已静默初始化")
+        logger.info("Playwright persistent client ready (profile: %s)", _PW_PROFILE_DIR)
 
-    def _save_cookies(self):
-        # 将最新的 Cookie 存储下来
-        current = self.context.cookies()
-        # 将 playwright 格式转为我们之前的插件格式
-        cookie_utils.save_cookies(current, "playwright_fallback")
+    # ── navigation ───────────────────────────────────────────────────────
 
     def navigate(self, url: str) -> None:
         self.page.goto(url, wait_until="commit")
@@ -81,6 +68,8 @@ class PlaywrightClient(BaseClient):
 
     def wait_for_selector(self, selector: str, timeout: int = 30000) -> None:
         self.page.wait_for_selector(selector, timeout=timeout)
+
+    # ── query ────────────────────────────────────────────────────────────
 
     def has_element(self, selector: str) -> bool:
         return self.page.locator(selector).count() > 0
@@ -100,11 +89,12 @@ class PlaywrightClient(BaseClient):
             return loc.get_attribute(attr)
         return None
 
+    # ── interaction ──────────────────────────────────────────────────────
+
     def click_element(self, selector: str) -> None:
         self.page.locator(selector).first.click()
 
     def input_text(self, selector: str, text: str) -> None:
-        # Playwright 的 fill 会自动处理 React 受控组件
         self.page.locator(selector).first.fill(text)
 
     def scroll_by(self, x: int = 0, y: int = 0) -> None:
@@ -118,24 +108,28 @@ class PlaywrightClient(BaseClient):
         if loc.count() > 0:
             loc.scroll_into_view_if_needed()
 
+    # ── eval / commands ──────────────────────────────────────────────────
+
     def evaluate(self, expression: str) -> Any:
         return self.page.evaluate(expression)
 
     def send_command(self, method: str, params: dict | None = None) -> Any:
-        # Fallback 兼容
+        params = params or {}
         if method == "press_key":
-            key = params.get("key")
-            self.page.keyboard.press(key)
+            self.page.keyboard.press(params.get("key", ""))
         elif method == "get_cookies":
             return self.context.cookies()
+        elif method == "screenshot_element":
+            buf = self.page.screenshot(type="png")
+            return {"format": "png", "data": base64.b64encode(buf).decode("ascii")}
         else:
-            logger.warning("Playwright 客户端暂未实现底层命令: %s", method)
+            logger.warning("PlaywrightClient: unhandled command: %s", method)
 
-    def __del__(self):
+    # ── cleanup ──────────────────────────────────────────────────────────
+
+    def __del__(self) -> None:
         try:
-            self._save_cookies()
             self.context.close()
-            self.browser.close()
             self.playwright.stop()
-        except:
+        except Exception:
             pass

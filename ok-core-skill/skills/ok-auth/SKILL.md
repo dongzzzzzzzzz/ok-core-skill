@@ -8,11 +8,15 @@ description: |
 
 检查 OK.com 的登录状态。
 
+## 执行约束
+
+`<SKILL_DIR>` 是本 SKILL.md 的**上两级目录**（即包含 `pyproject.toml` 的项目根目录）。
+
 ## 命令
 
 ```bash
 # 检查登录状态
-uv run python scripts/cli.py check-login
+uv run --project <SKILL_DIR> ok-cli check-login
 ```
 
 ## 返回值
