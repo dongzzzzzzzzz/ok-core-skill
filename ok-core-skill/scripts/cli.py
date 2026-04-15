@@ -216,6 +216,46 @@ def cmd_browse_category(args):
     _output(out)
 
 
+def cmd_full_search(args):
+    """一站式搜索：打开网站→切换城市→点击分类→搜索→提取结果"""
+    if not args.category and not args.keyword:
+        _error("--category 和 --keyword 至少需要提供一个")
+
+    client = get_client()
+    from ok.full_search import full_search_flow
+
+    result = full_search_flow(
+        client,
+        country=args.country,
+        city_keyword=args.city,
+        category=args.category,
+        keyword=args.keyword,
+        lang=args.lang,
+        max_results=args.max_results,
+        price_min=args.price_min,
+        price_max=args.price_max,
+    )
+
+    out = {
+        "flow": result.flow,
+        "steps": [
+            {
+                "step": s.step,
+                "success": s.success,
+                **({"error": s.error} if s.error else {}),
+                **{k: v for k, v in s.detail.items() if k != "raw_listings"},
+            }
+            for s in result.steps
+        ],
+        "total": result.total,
+        "listings": [asdict(l) for l in result.listings],
+        "final_url": result.final_url,
+    }
+    if args.price_min is not None or args.price_max is not None:
+        out["price_filter"] = {"min": args.price_min, "max": args.price_max}
+    _output(out)
+
+
 def cmd_check_login(args):
     """检查登录状态"""
     
@@ -307,6 +347,17 @@ def main():
     p.add_argument("--min-price", type=float, default=None, dest="price_min", help="最低价格（含）")
     p.add_argument("--max-price", type=float, default=None, dest="price_max", help="最高价格（含）")
 
+    # full-search
+    p = subparsers.add_parser("full-search", help="一站式搜索（打开→切换城市→分类→搜索→结果）")
+    p.add_argument("--country", required=True, help="国家名（如 usa, singapore）")
+    p.add_argument("--city", required=True, help="城市名关键词，用于 UI 搜索（如 hawaii, tokyo）")
+    p.add_argument("--category", default=None, help="分类 code（如 property, jobs, marketplace），可选")
+    p.add_argument("--keyword", default=None, help="搜索关键词，可选（与 --category 至少提供一个）")
+    p.add_argument("--lang", default="en", help="语言（默认 en）")
+    p.add_argument("--max-results", type=int, default=20, help="最大结果数（默认 20）")
+    p.add_argument("--min-price", type=float, default=None, dest="price_min", help="最低价格（含）")
+    p.add_argument("--max-price", type=float, default=None, dest="price_max", help="最高价格（含）")
+
     # check-login
     subparsers.add_parser("check-login", help="检查登录状态")
 
@@ -336,6 +387,7 @@ def main():
         "list-feeds": cmd_list_feeds,
         "get-listing": cmd_get_listing,
         "browse-category": cmd_browse_category,
+        "full-search": cmd_full_search,
         "check-login": cmd_check_login,
     }
 

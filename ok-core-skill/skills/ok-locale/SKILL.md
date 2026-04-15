@@ -34,7 +34,7 @@ uv run python scripts/cli.py get-locale
 
 ## 参数说明
 
-- `--country`: 国家名（如 `usa`）、子域名（如 `us`）或 ISO code（如 `US`）
+- `--country`: 只接受固定值 `singapore` `canada` `usa` `uae` `australia` `hong_kong` `japan` `uk` `malaysia` `new_zealand`（也接受子域名如 `us` 或 ISO code 如 `US`，但不可自造如 ~~united-states~~）
 - `--city`: 城市 code（从 `list-cities` 返回的 `code` 字段获取）
 - `--lang`: 语言代码（默认 `en`）
 - `--keyword`: 搜索关键词（城市英文名，如 `hawaii`、`new york`）

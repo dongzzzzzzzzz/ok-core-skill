@@ -20,7 +20,7 @@ metadata:
 
 你是"OK.com 自动化助手"。根据用户意图路由到对应的子技能完成任务。
 
-## 🔒 技能边界（强制）
+## 执行约束（强制）
 
 **所有 OK.com 操作只能通过本项目的 `uv run python scripts/cli.py` 完成：**
 
@@ -33,7 +33,7 @@ metadata:
 
 按优先级判断用户意图，路由到对应处理：
 
-0. **搜索/浏览**（"找夏威夷房源 / 搜索东京的工作 / 温哥华二手车 / 夏威夷50万以下的房子 / 搜索帖子 / 浏览分类"）→ 涉及搜索或浏览分类 → 执行 `ok-search` 技能
+0. **搜索/浏览**（"找夏威夷房源 / 搜索东京的工作 / 温哥华二手车 / 夏威夷50万以下的房子"）→ 执行 `ok-search` 技能
 1. **地区切换**（"切换到新加坡 / 切换城市 / 列出国家 / 列出城市"）→ 执行 `ok-locale` 技能
 2. **推荐/详情**（"首页推荐 / 查看帖子详情"）→ 执行 `ok-explore` 技能
 3. **登录检测**（"检查登录 / 登录状态"）→ 执行 `ok-auth` 技能
@@ -46,93 +46,45 @@ metadata:
 - CLI 输出为 JSON 格式，结构化呈现给用户
 - 操作频率不宜过高，保持合理间隔
 - ok.com 是多国家平台，注意确认用户需要的国家和城市
+- **`--country` 只接受以下 10 个固定值**：`singapore` `canada` `usa` `uae` `australia` `hong_kong` `japan` `uk` `malaysia` `new_zealand`
 - **`--country` 和 `--city` 在 search / browse-category / list-feeds 中默认值为 singapore，搜索其他地区时必须显式传入**
 
 ---
 
 ## 子技能概览
 
-### ok-search — 搜索与浏览（唯一入口）
+### ok-search — 搜索与浏览
 
-所有搜索帖子、浏览分类的请求均由此技能处理。完整 5 步流程：解析意图 → 定位城市 → 切换地区 → 搜索/浏览 → 展示结果。支持价格区间筛选。
+所有搜索帖子、浏览分类的请求均由此技能处理。支持价格区间筛选。
 
-| 步骤 | 说明 |
-|------|------|
-| 1. 解析意图 | 从自然语言提取国家、城市、内容类型（中文→英文映射） |
-| 2. 定位城市 | `cli.py list-cities --country <国家> --mode search --keyword <城市>` |
-| 3. 切换地区 | `cli.py set-locale --country <国家> --city <城市code>` |
-| 4. 搜索/浏览 | `cli.py browse-category` 或 `cli.py search`（必须传 --country --city） |
-| 5. 展示结果 | 结构化列表 + 详情链接 |
+```bash
+uv run python scripts/cli.py full-search \
+  --country <国家> --city <城市名> \
+  [--category <分类code>] [--keyword <搜索关键词>] \
+  [--min-price X] [--max-price Y]
+```
+
+内部自动完成：打开网站 → UI 搜索城市并点选切换 → 点击分类 → 输入关键词搜索 → 价格筛选 → 提取结果。`--category` 和 `--keyword` 至少提供一个。
 
 ### ok-locale — 多国家/城市/语言管理
 
-管理 OK.com 的区域设置，城市通过 API 动态获取。
-
-| 命令 | 功能 |
-|------|------|
-| `cli.py list-countries` | 列出支持的国家 |
-| `cli.py list-cities --country <国家> --mode search --keyword <城市关键词>` | 搜索城市 |
-| `cli.py list-categories --country <国家>` | 动态获取分类树 |
-| `cli.py set-locale --country <国家> --city <城市>` | 切换到指定地区 |
-| `cli.py get-locale` | 获取当前地区 |
+```bash
+uv run python scripts/cli.py list-countries
+uv run python scripts/cli.py list-cities --country <国家> --mode search --keyword <城市关键词>
+uv run python scripts/cli.py list-categories --country <国家>
+uv run python scripts/cli.py set-locale --country <国家> --city <城市>
+uv run python scripts/cli.py get-locale
+```
 
 ### ok-explore — 首页推荐与帖子详情
 
-获取首页 feed 流和单条帖子完整详情。搜索/浏览分类请用 ok-search。
-
-| 命令 | 功能 |
-|------|------|
-| `cli.py list-feeds --country <国家> --city <城市>` | 获取首页推荐 |
-| `cli.py get-listing --url <URL>` | 获取帖子详情 |
+```bash
+uv run python scripts/cli.py list-feeds --country <国家> --city <城市>
+uv run python scripts/cli.py get-listing --url <URL>
+```
 
 ### ok-auth — 登录检测
 
-| 命令 | 功能 |
-|------|------|
-| `cli.py check-login` | 检查登录状态 |
-
----
-
-## 快速开始
-
 ```bash
-# 1. 安装依赖
-cd ok-core-skill && uv sync
-
-# 2. 安装 Chrome 扩展：加载 extension/ 目录
-
-# 3. 启动 Bridge Server
-uv run python scripts/bridge_server.py
-
-# 4. 列出支持的国家
-uv run python scripts/cli.py list-countries
-
-# 5. 获取新加坡的城市列表
-uv run python scripts/cli.py list-cities --country singapore -mode search --keyword singapore
-
-# 6. 切换到新加坡
-uv run python scripts/cli.py set-locale --country singapore --city singapore
-
-# 7. 搜索帖子
-uv run python scripts/cli.py search --keyword "laptop" --country singapore --city singapore
-
-# 8. 按分类浏览
-uv run python scripts/cli.py browse-category --category marketplace --country singapore --city singapore
-
-# 9. 获取帖子详情
-uv run python scripts/cli.py get-listing --url "https://sg.ok.com/en/city-singapore/cate-xxx/slug/"
+uv run python scripts/cli.py check-login
 ```
-
-## 客户端优先级（自动化底层）
-
-CLI 通过 `get_client()` 按顺序选用：**扩展 + Bridge** → **CDP（可选）** → **Playwright 无头**。
-
-- **不装扩展、但已用远程调试启动 Chrome**（例如 `bb-browser` daemon 或其他工具已暴露 CDP）：可设置 `OK_CDP_URL=http://127.0.0.1:9222`（端口以实际为准），再运行 CLI。调试端口仅应本机可信环境使用。
-- **调试 CDP 连接**：设置 `OK_CDP_STRICT=1` 时，若 CDP 连接失败则直接报错，不静默降级到 Playwright。
-
-## 失败处理
-
-- **Bridge Server 未启动**：运行 `uv run python scripts/bridge_server.py`
-- **Extension 未连接**：确认 Chrome 已安装并启用 OK Bridge 扩展；或使用上述 `OK_CDP_URL` 走 CDP
-- **操作超时**：检查网络连接，适当增加等待时间
-- **API 错误**：检查国家/城市参数是否正确

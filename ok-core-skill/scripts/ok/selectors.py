@@ -44,21 +44,36 @@ NAV_CATEGORY_ITEMS = "[class*='dropdownItemLabel'], [class*='categoryItem']"
 BREADCRUMB = "[class*='Breadcrumb'] a, [class*='breadcrumb'] a"
 
 # ─── 城市选择器 ─────────────────────────────────────────────
-CITY_SELECTOR_TRIGGER = "[class*='locationIcon'], [class*='location-icon']"
-CITY_MODAL = "[class*='SearchArea'], [class*='searchArea'], [class*='cityModal']"
-CITY_SEARCH_INPUT = "[class*='SearchArea'] input, [class*='cityModal'] input"
-CITY_LIST_ITEM = "[class*='cityItem'], [class*='city-item']"
-CITY_TOP_CITIES = "[class*='topCities'], [class*='popularCities']"
-CITY_SEARCH_RESULT_ITEM = "[class*='locationWrapperContent'] div[class*='item'], [class*='SearchArea'] div[class*='item'], [class*='cityItem'], [class*='city-item']"
+# 筛选栏上的城市 filter（列表页顶部，文本为当前城市名）
+# 用 __ 后缀精确匹配容器 div，排除 filterItemIcon/Content/Point 等子元素
+CITY_FILTER_ITEM = "[class*='FilterItem_filterItem__']"
+# 城市搜索弹出面板（点击城市 filter 后展开）
+CITY_SEARCH_OVERLAY = "[class*='FilterItemPC_newLocationOverlay']"
+CITY_SEARCH_INPUT = "input[placeholder='Search City']"
+CITY_SEARCH_RESULT_ITEM = "[class*='LocationWrapperNew_searchResultItem']"
+CITY_SEARCH_RESULT_NAME = "[class*='LocationWrapperNew_resultName']"
+CITY_SEARCH_RESULT_ADDR = "[class*='LocationWrapperNew_resultAddress']"
 
 # ─── 国家/语言选择器 ─────────────────────────────────────────
 COUNTRY_SELECTOR_TRIGGER = "[class*='flagIcon'], [class*='flag-icon']"
 COUNTRY_CHANGE_BTN = "[class*='changeCountry'], [class*='change-country']"
 
+# ─── 首页分类图标 ─────────────────────────────────────────────
+HOMEPAGE_CATEGORY_LINK = "a[href*='/cate-']"
+HOMEPAGE_CATEGORY_ICON = "a[href*='/cate-'], [class*='categoryIcon'], [class*='category-icon']"
+
 # ─── 筛选/排序 ─────────────────────────────────────────────
 FILTER_SORT = "[class*='sortFilter'], [class*='sort-filter']"
-FILTER_PRICE = "[class*='priceFilter'], [class*='price-filter']"
-FILTER_LOCATION = "[class*='locationFilter'], [class*='location-filter']"
+# 筛选条上的 FilterItem 按钮（文本匹配 "Price"）
+FILTER_ITEM = "[class*='FilterItem_filterItem__']"
+# Price 面板（点击 Price 按钮后展开的浮层）
+FILTER_PRICE_OVERLAY = "[class*='FilterItemPC_filterItemOverlay']"
+# 价格输入框
+FILTER_PRICE_MIN = "input.native-numeric-input[placeholder='Min']"
+FILTER_PRICE_MAX = "input.native-numeric-input[placeholder='Max']"
+# 筛选浮层底部的 Confirm/Clear 按钮
+FILTER_CONFIRM_BTN = "button[type='submit'][class*='FilterItemPC_button']"
+FILTER_CLEAR_BTN = "button[type='reset'][class*='FilterItemPC_button']"
 
 # ─── 分页/加载更多 ─────────────────────────────────────────
 LOAD_MORE_BTN = "[class*='loadMore'], [class*='load-more'], button[class*='more']"
