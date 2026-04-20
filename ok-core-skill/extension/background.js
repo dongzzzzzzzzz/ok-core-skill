@@ -415,12 +415,20 @@ function domExecutor(method, params) {
 // ───────────────────────── Tab 管理 ─────────────────────────
 
 async function getOrOpenOkTab() {
+  // 优先使用当前窗口的活动 ok.com 标签，确保用户能看到自动化过程
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (activeTab && activeTab.url && /^https:\/\/[^/]+\.ok\.com\//.test(activeTab.url)) {
+    return activeTab;
+  }
+
   const tabs = await chrome.tabs.query({ url: "https://*.ok.com/*" });
   if (tabs.length > 0) {
     await chrome.tabs.update(tabs[0].id, { active: true });
     return tabs[0];
   }
-  return await chrome.tabs.create({ url: "https://sg.ok.com/en/city-singapore/", active: true });
+  const tab = await chrome.tabs.create({ url: "https://sg.ok.com/en/city-singapore/", active: true });
+  await waitForTabComplete(tab.id, "https://sg.ok.com", 60000);
+  return await chrome.tabs.get(tab.id);
 }
 
 // 启动连接

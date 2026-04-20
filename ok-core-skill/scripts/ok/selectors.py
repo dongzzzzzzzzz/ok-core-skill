@@ -87,3 +87,41 @@ COOKIE_ACCEPT_BTN = "[class*='cookie'] button, [class*='Cookie'] button"
 LOGIN_BTN = "[class*='login'], [class*='Login'], [class*='signIn']"
 USER_AVATAR = "[class*='avatar'], [class*='Avatar'], [class*='userIcon']"
 USER_NAME = "[class*='userName'], [class*='user-name']"
+
+# ─── 登录弹窗流程 ─────────────────────────────────────────
+# PC 顶栏（宽屏）；窄屏 / 移动 UA 时可能整段不出现，需配合 login.py 内文本兜底
+LOGIN_TRIGGER = "#pcUserInfoArea [class*='PcUserInfo_loginButton']"
+# 不依赖 #pcUserInfoArea，只要页面上有该类名即可（部分布局下父级 id 不同）
+LOGIN_TRIGGER_ANY = "[class*='PcUserInfo_loginButton']"
+LOGIN_MODAL = "[class*='LoginPC_loginContainer']"
+LOGIN_MODAL_CLOSE = "[class*='TopBar_closeBtn']"
+LOGIN_MODAL_BACK = "[class*='TopBar_backBtn']"
+
+# 第一步：邮箱输入
+LOGIN_EMAIL_INPUT = ".ok_login_input_label_content_input"
+LOGIN_CONTINUE_BTN = "[class*='ValidAccount_loginBtn']"
+LOGIN_CLEAR_INPUT = ".ok_login_input_label_suffix_clear"
+
+# 第二步：密码输入
+# 已注册用户登录页使用 CustomCounterInput，注册页使用 ok_login_input
+LOGIN_PASSWORD_INPUT_LOGIN = "[class*='CustomCounterInput_customInput']"
+LOGIN_PASSWORD_INPUT_REGISTER = ".ok_login_input_label_content_input"
+LOGIN_SUBMIT_BTN = "[class*='LoginPC_continueButton'], [class*='ValidAccount_loginBtn']"
+
+# 页面标题（区分登录 vs 注册）
+LOGIN_TITLE_WELCOME = "[class*='WelcomeTip_welcomeTitle']"
+LOGIN_TITLE_REGISTER = "[class*='ValidAccount_title']"
+
+# 忘记密码
+LOGIN_FORGOT_PASSWORD = "[class*='LoginPC_forgottenPassword']"
+
+# 第三方登录图标
+SOCIAL_LOGIN_GOOGLE = "[class*='SocialLoginIcons'] img[alt='google']"
+SOCIAL_LOGIN_FACEBOOK = "[class*='SocialLoginIcons'] img[alt='facebook']"
+SOCIAL_LOGIN_APPLE = "[class*='SocialLoginIcons'] img[alt='apple']"
+
+# 登录错误提示
+LOGIN_ERROR_MSG = "[class*='errorMsg'], [class*='error-msg'], [class*='ErrorTip']"
+
+# 已登录状态（非 login 按钮，说明已登录）
+LOGGED_IN_INDICATOR = "[class*='PcUserInfo_userInfoArea'] [class*='avatar'], [class*='PcUserInfo_userInfoArea'] img[class*='Avatar']"

@@ -92,6 +92,13 @@ uv run python scripts/cli.py get-listing --url "https://sg.ok.com/en/city-singap
 
 # 检查登录
 uv run python scripts/cli.py check-login
+
+# 邮箱密码登录（全自动）
+uv run python scripts/cli.py login --email "user@example.com" --password "yourpassword"
+
+# 等待用户手动完成 OAuth 登录（如 Google/Facebook/Apple）
+uv run python scripts/cli.py wait-login --timeout 120
+
 ```
 
 ## CLI 命令参考
