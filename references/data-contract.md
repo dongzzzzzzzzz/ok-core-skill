@@ -27,6 +27,10 @@
 | `url` | string | 是 | 原帖链接 |
 | `image_url` | string \| null | 否 | 封面图 URL |
 | `listing_id` | string | 否 | 平台唯一 ID |
+| `address` | string \| null | 否 | 完整或半完整地址。数据源没有时不要强求 |
+| `lat` | number \| null | 否 | 纬度。仅在数据源天然提供时使用 |
+| `lng` | number \| null | 否 | 经度。仅在数据源天然提供时使用 |
+| `geo_precision` | string \| null | 否 | `address` / `area` / `missing`，表示位置精度 |
 
 ---
 
@@ -63,6 +67,10 @@
 | `listing_id` | string | 否 | 平台唯一 ID |
 | `category` | string \| null | 否 | 分类路径 |
 | `posted_time` | string \| null | 否 | 发布时间（可能是相对时间） |
+| `address` | string \| null | 否 | 完整或半完整地址。可从详情页文本中获得时提供 |
+| `lat` | number \| null | 否 | 纬度。仅在数据源天然提供时使用 |
+| `lng` | number \| null | 否 | 经度。仅在数据源天然提供时使用 |
+| `geo_precision` | string \| null | 否 | `address` / `area` / `missing`，表示位置精度 |
 
 ---
 
@@ -111,7 +119,7 @@
 
 无论数据来自哪个 skill，以下信息通常**不可用**，Agent 不应假装拥有：
 
-- 精确地理坐标（经纬度）
+- 精确地理坐标（经纬度）。如果数据源没有提供，不能要求上游数据源改造，只能由地图上下文 skill 做 best-effort 补充
 - 实际通勤时间（需借助 Google Maps 等工具验证）
 - 学区信息
 - 安全评级 / 犯罪率
@@ -120,6 +128,8 @@
 - 合同细节（押金、最短租期等）
 
 当需要上述信息辅助决策时，参考 [decision-toolkit.md](decision-toolkit.md) 中的工具使用方法。
+
+地图上下文数据由可选外部 skill 提供，契约见 [map-context-contract.md](map-context-contract.md)。如果地图结果只有区域级精度或处于 degraded 状态，决策层必须降低结论强度。
 
 ---
 

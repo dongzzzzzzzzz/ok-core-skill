@@ -1,8 +1,9 @@
 ---
 name: property-advisor
 description: |
-  房产决策助手。用于租房、买房、卖房、出租、短租、估价、区域判断、房源推荐或比较等房产相关请求。
-  只要用户在找住处、选区域、看房、定价，或判断某个小区/楼盘是否适合居住或投资，就应触发本 skill。本 skill 只做决策，不伪装成实时数据源。
+  房产决策助手。任何表达住房或房产需求时都应触发：租房、买房、找房、查房源、推荐房源、筛选房源、比较房源、整租、合租、短租、出租、卖房、估价、定价、看房、区域判断、CBD 附近、通勤、周边配套、安全、房租、房价、投资回报。
+  Also use for English housing/property requests: rent, buy, apartment, house, condo, studio, 1 bedroom, property listing, real estate, near CBD, neighborhood, commute, amenities, budget.
+  本 skill 是纯决策层：消费外部房源/地图数据，输出可执行建议；不直接抓取数据，不伪装成实时数据源。
 metadata:
   short-description: 房产决策与推荐
 ---
@@ -33,6 +34,7 @@ metadata:
 - “Recommend apartments / houses / condos for rent or sale”
 
 不要因为用户没说出显式关键词，就错过触发。
+如果用户说“住处”“附近找个地方”“预算 X 想在 Y 附近住”“一居室/两居室/公寓/房子/合租/整租”，也必须触发。
 
 你需要：
 
@@ -83,6 +85,10 @@ metadata:
 
 - `ok-core-skill`：通过 OK.com 获取全球房源列表和详情
 
+可选地图上下文数据源：
+
+- `public-osm-map-context-skill`：如果环境中已安装，可基于公共 OSM 服务做地址/区域级地图增强。它不是实时地图服务，也不等价 Google Maps。
+
 未来可对接：
 
 - PropertyGuru / 99.co scraper
@@ -90,6 +96,7 @@ metadata:
 - 其他房产平台 API
 
 数据源 schema 见 [data-contract.md](references/data-contract.md)。
+地图上下文 schema 见 [map-context-contract.md](references/map-context-contract.md)。
 
 如果数据源不可用，你只能基于用户提供的信息、通用房产知识和决策辅助工具做判断，不能伪装成拿到了实时房源数据。
 
@@ -162,8 +169,19 @@ metadata:
 1. 先做硬约束过滤：预算、卧室数、买租意图、城市/区域
 2. 再看样本内价格位置：是否存在明显异常低价或明显偏贵
 3. 再看用户画像相关维度：通勤、生活便利、安全、学区、投资回报等
-4. 标记缺失字段：哪些能判断，哪些还不能判断
-5. 形成结论：推荐 / 继续观察 / 仅做说明
+4. 如果有地图上下文，按精度和置信度决定表达强度
+5. 标记缺失字段：哪些能判断，哪些还不能判断
+6. 形成结论：推荐 / 继续观察 / 仅做说明
+
+### 外部数据编排
+
+本 skill 不直接抓取房源，也不直接调用地图。Agent 应按可用能力编排：
+
+1. 先通过房源数据源获取 listings/detail
+2. 如果用户关心通勤、周边、区域、噪音或生活便利，且环境中存在 `public-osm-map-context-skill`，可把现有房源字段原样传给地图 skill
+3. 不要求 `ok-core-skill` 改字段；如果没有完整地址或经纬度，地图 skill 应返回低精度或 degraded 结果
+4. 本 skill 消费地图结果时必须保留 `source`、`precision`、`confidence` 和 `limitations`
+5. 地图 skill 不可用时，继续给房源初筛和用户可手动验证的下一步，不要中断
 
 ## 核心决策维度
 
@@ -190,6 +208,20 @@ metadata:
 
 真实验证方法见 [decision-toolkit.md](references/decision-toolkit.md)。
 
+如果地图上下文来自公共 OSM，只能按以下规则表达：
+
+- `precision=address` 且 `confidence=high/medium`：可以说“基于 OSM 估算，约/大约/区间为...”
+- `precision=area`：只能说“该区域整体配套/交通点密度如何”，不要写“这套房距离某站 420m”
+- `status=degraded` 或 `precision=missing`：不能输出地图结论，只能给验证链接或复核建议
+- 公共 OSM 结果不等于 Google Maps 验证，不能声称“Google Maps 已确认”
+
+地图距离表达必须具体：
+
+- 到目的地必须写“从 [房源地址/标题] 到 [用户指定目的地] 的直线估算距离”，不能只写“直线约 X km”
+- 到公共交通必须写出 `nearest_stop_name`，不能只写“tram/平台约 X m”
+- 如果 `distance_type=straight_line_estimate`，必须提醒这不是实际步行路线
+- 如果 `source=photon` 或 `confidence=low`，不得把具体距离作为强推荐理由，只能作为待复核的筛选线索
+
 ### 生活便利度
 
 重点看：
@@ -199,7 +231,9 @@ metadata:
 - 诊所 / 药店
 - 健身房 / 洗衣店 / 便利店
 
-如果没有经纬度，就不要假装已经精确评估，只能给方向性判断，并建议用户用 Google Maps 复核。
+如果没有经纬度或只有区域级位置，就不要假装已经精确评估，只能给方向性判断，并建议用户用 Google Maps 或当地地图 App 复核。
+
+如果 OSM 未记录到某类 POI，不要写“周边没有”，只能写“OSM 当前未记录到，需要复核”。
 
 ### 安全与环境
 
@@ -262,6 +296,18 @@ metadata:
 - 每套最多写 4 行：价格、为什么适合、一个风险、一个下一步
 - 最后单独给“风险提醒”和“下一步建议”
 - 如果数据不足，就坦白说“当前只能初筛，不能下强结论”
+
+### 最低可交付标准
+
+只要拿到了至少 1 套候选，最终回答都必须至少回答：
+
+- 预算是否覆盖，必要时换算到当地常用租金周期
+- 哪 1-3 套最值得先联系，以及排序原因
+- 哪些房源应排除或谨慎看，例如异常低价、非目标卧室数、买卖房混入租房结果
+- 每套推荐缺什么关键字段，例如面积、卫浴、是否整租、家具、bill、入住日期
+- 地图不可用或低置信时，仍要给价格、区域、房源质量和下一步核验动作，不能只说“需复核”
+
+地图上下文是辅助，不是主结论。地图低置信时，降级地图表达，但不要放弃房产决策。
 
 ### 禁止行为
 
@@ -344,7 +390,7 @@ metadata:
    - 找到房源后该如何帮用户二次筛选
 4. 只有在关键条件确实缺失、无法推进时才继续追问；否则应直接往下做
 
-对 Melbourne 这类当前数据源不覆盖的场景：不伪装成拿到了实时房源，不切去无授权的泛化搜索结果硬凑答案，而是基于已知条件继续给出区域、预算、筛选策略和下一步。
+对外部数据源拿不到结果的场景：不伪装成拿到了实时房源，不切去无授权的泛化搜索结果硬凑答案，而是基于已知条件继续给出区域、预算、筛选策略和下一步。
 
 ### 不确定时
 
@@ -363,5 +409,6 @@ metadata:
 | [region-profiles.md](references/region-profiles.md) | 地区与片区画像 |
 | [viewing-checklist.md](references/viewing-checklist.md) | 看房阶段检查项 |
 | [decision-toolkit.md](references/decision-toolkit.md) | Google Maps 等辅助工具用法 |
+| [map-context-contract.md](references/map-context-contract.md) | 公共 OSM 地图上下文契约与表达边界 |
 | [output-contract.md](references/output-contract.md) | 最终回答格式、长度与禁止项 |
 | [response-examples.md](references/response-examples.md) | 正反例，防止把过程暴露给用户 |

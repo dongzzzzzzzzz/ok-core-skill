@@ -1,4 +1,4 @@
 interface:
   display_name: "Property Advisor"
-  short_description: "Use for renting, buying, selling, pricing, or evaluating housing and neighborhoods"
-  default_prompt: "Use this skill for housing-related requests such as renting, buying, selling, pricing, comparing listings, choosing neighborhoods, or judging whether an area or building fits the user's living or investment needs."
+  short_description: "Rent, buy, compare, price, or evaluate homes, listings, and neighborhoods"
+  default_prompt: "Use this skill for any housing or property request: renting, buying, finding apartments or houses, 1 bedroom/studio/condo searches, listing recommendations, budget filtering, commute and amenity checks, selling, pricing, neighborhood evaluation, or deciding whether an area/building fits the user's living or investment needs. The skill is a decision layer: consume external listing/map data, then give practical recommendations, risks, and next actions."
