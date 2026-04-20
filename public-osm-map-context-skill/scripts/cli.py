@@ -762,6 +762,19 @@ def verification_links(listing: dict[str, Any], geo: dict[str, Any]) -> dict[str
     return links
 
 
+def listing_ref(listing: dict[str, Any]) -> dict[str, Any]:
+    """Return a compact listing echo for downstream decision-layer joins."""
+    return {
+        "id": safe_text(listing.get("id")) or None,
+        "listing_id": safe_text(listing.get("listing_id")) or None,
+        "title": safe_text(listing.get("title")) or None,
+        "price": safe_text(listing.get("price")) or None,
+        "location": safe_text(listing.get("location")) or None,
+        "url": safe_text(listing.get("url")) or None,
+        "image_url": safe_text(listing.get("image_url")) or None,
+    }
+
+
 def analyze_batch(args: argparse.Namespace) -> dict[str, Any]:
     input_data = load_json(Path(args.input))
     listings = input_data.get("listings", input_data if isinstance(input_data, list) else [])
@@ -812,6 +825,7 @@ def analyze_batch(args: argparse.Namespace) -> dict[str, Any]:
         limitations = ["not_google_maps_verified", "public_transport_time_not_verified", "osm_coverage_may_be_incomplete"]
         result: dict[str, Any] = {
             "id": listing["id"],
+            "listing_ref": listing_ref(listing),
             "geo": geo,
             "verification_links": verification_links(listing, geo),
             "limitations": list(limitations),

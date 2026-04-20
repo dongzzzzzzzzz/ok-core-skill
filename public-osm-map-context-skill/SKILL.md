@@ -55,6 +55,7 @@ python3 scripts/cli.py analyze-batch --input tests/fixtures/melbourne_listings.j
 
 The CLI always returns JSON. Each listing includes:
 
+- `listing_ref`: compact original listing fields (`id`, `listing_id`, `title`, `price`, `location`, `url`, `image_url`) so decision layers can keep the original post link
 - `geo.precision`: `address`, `area`, or `missing`
 - `geo.confidence`: `high`, `medium`, or `low`
 - `geo.geocode_query_used`: the exact query sent to geocoding, when available
@@ -74,3 +75,4 @@ The CLI always returns JSON. Each listing includes:
 - If only area-level location is available, do not output listing-level precise distance claims.
 - `source=photon` and `confidence=low` should be treated as low-confidence screening signals, not address-level proof.
 - If geocoding fails, still return `verification_links.google_maps_manual` so the decision layer can give the user a manual validation path.
+- `verification_links` are map verification links only; they must not replace the original listing URL from `listing_ref.url`.

@@ -6,6 +6,8 @@
       "price": "A$786/wk",
       "location": "Southbank VIC",
       "address": "205 Normanby Rd, Southbank VIC 3006",
+      "description": "Full listing description should not be echoed by map context.",
+      "image_url": "https://example.test/archive.jpg",
       "url": "https://example.test/archive"
     },
     {

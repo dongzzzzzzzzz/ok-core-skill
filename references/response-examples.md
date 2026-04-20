@@ -41,26 +41,26 @@
 价格：A$649/周（约 A$2,810/月）
 适合你的原因：CBD 核心位置，样本里价格不算高，图片也比较完整
 需要确认：面积和卫浴信息当前没有
-链接：<url>
+链接：原帖 <url>；地图复核 <google_maps_manual_url>
 
 2. 2203/58 Clarke St
 价格：A$489/周（约 A$2,117/月）
 适合你的原因：Southbank 里性价比突出，预算压力最小
 需要确认：到你工作地点的真实高峰通勤时间
-链接：<url>
+链接：原帖 <url>；地图复核 <google_maps_manual_url>
 
 3. 81 A'Beckett St
 价格：A$699/周（约 A$3,027/月）
 适合你的原因：CBD 内更稳妥，适合更看重通勤确定性的情况
 需要确认：楼层、朝向和噪音情况
-链接：<url>
+链接：原帖 <url>；地图复核 <google_maps_manual_url>
 
 风险提醒：
 - Paragon Apartments 的超低价更像短租或异常价格，不建议当作正常月租参考
 - 这批结果缺少面积、卫浴和设施信息，目前更适合初筛，不适合直接定房
 
 下一步：
-- 先用 Google Maps 验证这 3 套到公司或学校的早高峰通勤
+- 先用 Google Maps 手动复核这 3 套到公司或学校的早高峰通勤
 - 再联系房东确认面积、卫浴、家具和租约条款
 ```
 
@@ -70,6 +70,30 @@
 - 只展示用户需要的部分
 - 每条推荐都有理由，也有未确认风险
 - 没有把中间分析过程暴露出来
+
+## 正例：正确使用地图上下文后的推荐输出
+
+```markdown
+按 A$710/周预算看，先联系 58 Clarke St 和 25 Coventry St；地图信息只作为辅助筛选，不能替代原帖详情和实地核验。
+
+优先看这 2 套：
+
+1. 2203/58 Clarke St, Southbank
+价格：A$489/周，预算压力最小
+适合你的原因：满足近 CBD 和低租金目标，价格比同批 Southbank 候选更低
+需要确认：是否完整一居室整租、面积、家具；基于 OSM 地址级估算可做周边初筛，但真实路线要手动复核
+链接：原帖 <url>；地图复核 <google_maps_manual_url>
+
+2. 25 Coventry St, Southbank
+价格：A$579/周，预算内
+适合你的原因：Southbank 近 CBD，价格仍有空间
+需要确认：楼层和铁路/主路噪音；如果 OSM 未记录到某类设施，只代表公开数据未记录，需看房前复核
+链接：原帖 <url>；地图复核 <google_maps_manual_url>
+
+风险提醒：
+- 不要把 Google Maps 手动复核链接当作房源详情页
+- 地图 POI 数量只用于筛选，不能直接写成“周边一定有/没有”
+```
 
 ## 正例：观察模式
 
@@ -81,12 +105,12 @@
 1. The Archive, 205 Normanby Rd
 目前优点：价格和位置都还可以，带书房对居家办公更友好
 当前缺口：面积、卫浴和通勤实测都没有
-链接：<url>
+链接：原帖 <url>；地图复核 <google_maps_manual_url>
 
 2. 8 Pearl River Rd
 目前优点：价格不高，景观可能更好
 当前缺口：离 CBD 的真实通勤和周边便利度还没确认
-链接：<url>
+链接：原帖 <url>；地图复核 <google_maps_manual_url>
 
 风险提醒：
 - 当前样本对 Southbank/Docklands 的信息完整度一般，适合继续观察，不适合立刻推荐
@@ -125,19 +149,19 @@
 价格：A$489/周，预算压力最小
 适合你的原因：满足一居室和近 CBD，价格比同批 Southbank 候选更低
 需要确认：面积、卫浴、是否整租、家具和真实通勤
-链接：<url>
+链接：原帖 <url>；地图复核 <google_maps_manual_url>
 
 2. 25 Coventry St, Southbank
 价格：A$579/周，预算内
 适合你的原因：Southbank 近 CBD，价格仍有空间
 需要确认：地图定位只有低置信区域级结果，不能确认到 Stop 19: Shrine of Remembrance 的步行距离
-链接：<url>
+链接：原帖 <url>；地图复核 <google_maps_manual_url>
 
 3. 70 Southbank Boulevard, Southbank
 价格：A$699/周，接近预算上限
 适合你的原因：更靠近 CBD 核心，但贵得是否值得要看房间面积和设施
 需要确认：是否整租、噪音、实际步行路线
-链接：<url>
+链接：原帖 <url>；地图复核 <google_maps_manual_url>
 
 风险提醒：
 - Paragon A$245/周明显异常，更像床位/合租/短租或数据错误，不建议当作正常一居室

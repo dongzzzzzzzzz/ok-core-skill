@@ -61,6 +61,19 @@ class CliEndToEndTest(unittest.TestCase):
 
         by_id = {item["id"]: item for item in payload["listings"]}
         archive = by_id["listing_archive"]
+        for item in payload["listings"]:
+            self.assertIn("listing_ref", item)
+            self.assertTrue(item["listing_ref"]["url"])
+            self.assertIn("google_maps_manual", item["verification_links"])
+
+        archive_ref = archive["listing_ref"]
+        self.assertEqual(archive_ref["id"], "listing_archive")
+        self.assertEqual(archive_ref["title"], "The Archive, Southbank")
+        self.assertEqual(archive_ref["price"], "A$786/wk")
+        self.assertEqual(archive_ref["location"], "Southbank VIC")
+        self.assertEqual(archive_ref["url"], "https://example.test/archive")
+        self.assertEqual(archive_ref["image_url"], "https://example.test/archive.jpg")
+        self.assertNotIn("description", archive_ref)
         self.assertEqual(archive["geo"]["precision"], "address")
         self.assertGreaterEqual(archive["amenities"]["supermarket_count"], 1)
         self.assertIsNotNone(archive["transit_access"])
@@ -164,8 +177,11 @@ class CliEndToEndTest(unittest.TestCase):
         self.assertEqual(len(payload["listings"]), 14)
         self.assertTrue(any(item["geo"]["precision"] != "missing" for item in payload["listings"]))
         for item in payload["listings"]:
+            self.assertIn("listing_ref", item)
+            self.assertTrue(item["listing_ref"]["url"])
             self.assertIn("google_maps_manual", item["verification_links"])
         archive = next(item for item in payload["listings"] if item["id"] == "ok_title_archive")
+        self.assertEqual(archive["listing_ref"]["url"], "https://example.test/archive")
         self.assertEqual(archive["geo"]["geocode_query_used"], "205 Normanby Rd, Southbank VIC 3006, Australia")
         self.assertEqual(archive["geo"]["address_extraction_source"], "title")
 

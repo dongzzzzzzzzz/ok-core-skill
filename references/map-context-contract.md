@@ -4,6 +4,8 @@
 
 本 skill 不要求 `ok-core-skill` 或其他房源数据源改造字段。地图 skill 应基于当前已有的 `title`、`location`、`url`、`description`、`address`、`lat`、`lng` 做 best-effort 分析。
 
+地图 skill 是增强层，不是最终推荐层。输出每条地图结果时必须保留轻量 `listing_ref`，尤其是 `listing_ref.url`，作为编排层按 `id/listing_id` 合并失败时的兜底。最终回答中房源原帖链接和地图复核链接必须分开展示；Google Maps / OSM 链接不能替代房源原帖链接。
+
 如果 `address` 和 `location` 缺失或质量低，地图 skill 应尝试从 `title` 或 `description` 中提取地址。OK.com 常见标题会把楼名、城市、地址和价格粘在一起，例如 `The Archive, Melbourne205 Normanby Rd, Southbank VIC 3006, Australia`，地图 skill 应先提取 `205 Normanby Rd, Southbank VIC 3006, Australia` 再 geocode。
 
 发布时建议把 `public-osm-map-context-skill` 作为独立 skill 安装或注册；如果运行环境不能发现 nested skill，Agent 仍可按本契约调用当前仓库的参考 CLI。`property-advisor` 不应假设地图 skill 一定存在。
@@ -80,6 +82,15 @@ python3 public-osm-map-context-skill/scripts/cli.py analyze-batch --input listin
   "listings": [
     {
       "id": "listing_001",
+      "listing_ref": {
+        "id": "listing_001",
+        "listing_id": null,
+        "title": "The Archive, Southbank",
+        "price": "A$786/wk",
+        "location": "Southbank VIC",
+        "url": "https://...",
+        "image_url": null
+      },
       "geo": {
         "lat": -37.823,
         "lng": 144.958,
@@ -130,6 +141,8 @@ python3 public-osm-map-context-skill/scripts/cli.py analyze-batch --input listin
 }
 ```
 
+`listing_ref` 是原始房源的轻量回显，只用于保留决策层必需的展示和 join 信息。不得回显完整 `description`。
+
 `status` 可以是：
 
 - `ok`：地图上下文可用
@@ -165,6 +178,8 @@ python3 public-osm-map-context-skill/scripts/cli.py analyze-batch --input listin
 
 如果 `geo.precision=missing`，仍必须输出 `verification_links.google_maps_manual`。最终回答应说明该链接用于手动验证通勤路线、最近公共交通、超市/药店和噪音源。
 
+最终回答必须区分两类链接：房源详情用原始 `url` 或 `listing_ref.url`；地图核验用 `verification_links.google_maps_manual` 或 `verification_links.openstreetmap`。不能把地图核验链接写成房源详情链接。
+
 所有距离表达必须有明确对象：
 
 - 到目的地：必须写成“从 `[房源地址/标题]` 到 `[用户目的地]` 的直线估算距离约 X km”，不能只写“直线约 X km”
@@ -191,3 +206,5 @@ python3 public-osm-map-context-skill/scripts/cli.py analyze-batch --input listin
 5. 不要因为 `address/location` 为空就跳过地图；地图 skill 可以从 `title` 或 `description` 做 best-effort 地址提取
 
 不要要求房源数据源增加经纬度字段；如果上游没有坐标，地图 skill 自行降级处理。
+
+最终回答应以原始房源/详情数据为主，地图数据只作为辅助上下文。推荐某套房时必须优先使用原帖 `url`；`verification_links.google_maps_manual` 只能标为“地图复核链接”。
