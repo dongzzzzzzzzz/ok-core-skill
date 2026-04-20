@@ -1,8 +1,8 @@
 ---
 name: ok-skills
 description: |
-  OK.com 分类信息自动化技能集合。支持多国家/城市/语言切换、帖子搜索、分类浏览、详情获取。
-  当用户要求操作 OK.com（搜索帖子、浏览分类、获取详情、切换地区）时触发。
+  OK.com 分类信息自动化技能集合。支持多国家/城市/语言切换、帖子搜索、分类浏览、详情获取、收藏管理、我的帖子管理。
+  当用户要求操作 OK.com（搜索帖子、浏览分类、获取详情、切换地区、管理收藏、管理帖子）时触发。
 version: 1.0.0
 metadata:
   openclaw:
@@ -58,6 +58,8 @@ uv run playwright install chromium
 1. **地区切换**（"切换到新加坡 / 切换城市 / 列出国家 / 列出城市"）→ 执行 `ok-locale` 技能
 2. **推荐/详情**（"首页推荐 / 查看帖子详情"）→ 执行 `ok-explore` 技能
 3. **登录检测**（"检查登录 / 登录状态"）→ 执行 `ok-auth` 技能
+4. **收藏管理**（"查看收藏 / 收藏帖子 / 取消收藏"）→ 使用 `list-favorites` / `add-favorite` / `remove-favorite`
+5. **我的帖子**（"查看我的帖子 / 删除帖子 / 编辑帖子"）→ 使用 `list-my-posts` / `delete-post` / `edit-post`
 
 ---
 
@@ -107,4 +109,20 @@ uv run --project <SKILL_DIR> ok-cli get-listing --url <URL>
 
 ```bash
 uv run --project <SKILL_DIR> ok-cli check-login
+```
+
+### Favorites — 收藏管理
+
+```bash
+uv run --project <SKILL_DIR> ok-cli list-favorites --subdomain sg
+uv run --project <SKILL_DIR> ok-cli add-favorite --url <帖子详情页URL>
+uv run --project <SKILL_DIR> ok-cli remove-favorite --url <帖子详情页URL>
+```
+
+### My Posts — 我的帖子管理
+
+```bash
+uv run --project <SKILL_DIR> ok-cli list-my-posts --subdomain sg [--state active|pending|expired|draft]
+uv run --project <SKILL_DIR> ok-cli delete-post --subdomain sg --index 0
+uv run --project <SKILL_DIR> ok-cli edit-post --subdomain sg --index 0
 ```

@@ -83,6 +83,53 @@ PAGINATION = "[class*='pagination'], [class*='Pagination']"
 COOKIE_BANNER = "[class*='cookie'], [class*='Cookie']"
 COOKIE_ACCEPT_BTN = "[class*='cookie'] button, [class*='Cookie'] button"
 
+# ─── 顶部导航栏 ─────────────────────────────────────────────
+# Favourites 入口在顶部导航栏（非头像下拉）
+NAV_FAVOURITES_WRAPPER = "[class*='TopBarRightContent_iconImgWrapper']"
+NAV_FAVOURITES_TEXT = "[class*='TopBarRightContent_text']"
+
+# ─── 用户菜单（头像下拉） ─────────────────────────────────
+USER_MENU_TRIGGER = "[class*='PcUserInfo_userInfoArea']"
+USER_MENU_POPOVER = "[class*='HoverPopup_customPopover']"
+USER_MENU_ITEM = "[class*='PcUserInfo_textItemWrapper']"
+USER_MENU_ITEM_TEXT = "[class*='PcUserInfo_textItem']"
+
+# ─── 收藏页（/biz/en/list/favorites） ─────────────────────
+FAV_PAGE_TITLE = ".page-title"
+FAV_LIST_WRAPPER = ".list-components-list-wraper"
+FAV_CARD = (
+    "a[class*='list-components-item-card-default-a']"
+)
+FAV_CARD_TITLE = ".title"
+FAV_CARD_PRICE = ".prices"
+FAV_CARD_IMAGE = ".image-container img"
+FAV_CARD_ADDRESS = ".address"
+FAV_CARD_COMPANY = ".jobCardCompany"
+# 卡片上的心形收藏按钮（列表页 & 收藏页通用）
+FAV_HEART_BTN = ".list-components-item-favorite.pc-card"
+FAV_HEART_ICON = ".favorite-icon"
+
+# ─── 详情页收藏按钮 ─────────────────────────────────────────
+DETAIL_FAV_AREA = "[class*='MainInfo_favAndShare']"
+DETAIL_FAV_BTN = "[class*='PcImageOperationArea_imgWrapper']"
+
+# ─── 我的帖子页（/biz/en/publish/list） ─────────────────────
+MY_POST_PAGE = ".page-list-page"
+MY_POST_CONTAINER = ".page-list-container"
+MY_POST_LIST = ".list-container"
+MY_POST_CATE_TABS = ".tab-bar.cate .tab"
+MY_POST_STATE_TABS = ".tab-bar.state .tab"
+MY_POST_EMPTY = ".list-empty"
+MY_POST_CARD = ".pc-list-item"
+MY_POST_CARD_TITLE = ".item-content-title"
+MY_POST_CARD_PRICE = ".item-content-price"
+MY_POST_CARD_IMAGE = ".item-img-container img"
+MY_POST_CARD_ADDRESS = ".item-content-address"
+MY_POST_CARD_STATS = ".item-statistics"
+MY_POST_ACTION_BTN = ".pc-list-item-handle"
+MY_POST_DROPDOWN = ".dropdown-menu"
+MY_POST_DROPDOWN_ITEM = ".dropdown-item"
+
 # ─── 登录相关 ─────────────────────────────────────────────
 LOGIN_BTN = "[class*='login'], [class*='Login'], [class*='signIn']"
 USER_AVATAR = "[class*='avatar'], [class*='Avatar'], [class*='userIcon']"

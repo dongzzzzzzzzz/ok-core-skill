@@ -14,6 +14,8 @@ OK.com 分类信息自动化 Skills，通过 Chrome 扩展 + Python 引擎，让
 | **ok-locale** | 地区管理 | 多国家切换、城市动态获取、分类动态获取 |
 | **ok-explore** | 内容发现 | 首页推荐、帖子详情 |
 | **ok-auth** | 登录检测 | 登录状态检查 |
+| **favorites** | 收藏管理 | 查看收藏列表、添加/取消收藏 |
+| **my-posts** | 我的帖子 | 查看/筛选我的帖子、删除帖子、获取编辑链接 |
 
 ## 安装
 
@@ -99,6 +101,17 @@ uv run python scripts/cli.py login --email "user@example.com" --password "yourpa
 # 等待用户手动完成 OAuth 登录（如 Google/Facebook/Apple）
 uv run python scripts/cli.py wait-login --timeout 120
 
+# 收藏管理
+uv run python scripts/cli.py list-favorites --subdomain sg
+uv run python scripts/cli.py add-favorite --url "https://sg.ok.com/en/city-singapore/cate-xxx/slug/"
+uv run python scripts/cli.py remove-favorite --url "https://sg.ok.com/en/city-singapore/cate-xxx/slug/"
+
+# 我的帖子
+uv run python scripts/cli.py list-my-posts --subdomain sg
+uv run python scripts/cli.py list-my-posts --subdomain sg --state expired
+uv run python scripts/cli.py delete-post --subdomain sg --index 0
+uv run python scripts/cli.py edit-post --subdomain sg --index 0
+
 ```
 
 ## CLI 命令参考
@@ -117,6 +130,14 @@ uv run python scripts/cli.py wait-login --timeout 120
 | `list-feeds` | 首页推荐 | `--country --city [--max-results]` |
 | `get-listing` | 获取帖子详情 | `--url` |
 | `check-login` | 检查登录状态 | — |
+| `login` | 邮箱密码登录 | `--email --password` |
+| `wait-login` | 等待手动登录 | `[--timeout]` |
+| `list-favorites` | 列出收藏列表 | `[--subdomain] [--max-results]` |
+| `add-favorite` | 收藏帖子 | `--url` |
+| `remove-favorite` | 取消收藏 | `--url` |
+| `list-my-posts` | 列出我的帖子 | `[--subdomain] [--state] [--max-results]` |
+| `delete-post` | 删除帖子（按序号） | `[--subdomain] --index` |
+| `edit-post` | 获取帖子编辑链接 | `[--subdomain] --index` |
 
 退出码：`0` 成功 · `2` 错误
 
@@ -155,6 +176,8 @@ ok-core-skill/
 │   │   ├── listing_detail.py   # 帖子详情
 │   │   ├── categories.py       # 分类浏览
 │   │   ├── feeds.py            # 首页推荐
+│   │   ├── favorites.py        # 收藏管理
+│   │   ├── my_posts.py         # 我的帖子管理
 │   │   ├── human.py            # 行为模拟
 │   │   └── cookies.py          # Cookie 管理
 │   ├── cli.py                  # 统一 CLI 入口

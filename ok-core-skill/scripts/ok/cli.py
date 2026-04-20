@@ -301,6 +301,85 @@ def cmd_wait_login(args):
     exit_code = 0 if result.get("logged_in") else 2
     _output(result, exit_code)
 
+
+def cmd_list_favorites(args):
+    """列出收藏列表"""
+    client = get_client()
+    from ok.favorites import list_favorites
+    result = list_favorites(
+        client,
+        subdomain=args.subdomain,
+        lang=args.lang,
+        max_results=args.max_results,
+    )
+    _output({
+        "total": result.total,
+        "url": result.url,
+        "items": [asdict(item) for item in result.items],
+    })
+
+
+def cmd_add_favorite(args):
+    """收藏帖子"""
+    client = get_client()
+    from ok.favorites import add_favorite
+    result = add_favorite(client, args.url)
+    _output(result)
+
+
+def cmd_remove_favorite(args):
+    """取消收藏帖子"""
+    client = get_client()
+    from ok.favorites import remove_favorite
+    result = remove_favorite(client, args.url)
+    _output(result)
+
+
+def cmd_list_my_posts(args):
+    """列出我的帖子"""
+    client = get_client()
+    from ok.my_posts import list_my_posts
+    result = list_my_posts(
+        client,
+        subdomain=args.subdomain,
+        lang=args.lang,
+        state=args.state,
+        max_results=args.max_results,
+    )
+    _output({
+        "total": result.total,
+        "state": result.state,
+        "url": result.url,
+        "items": [asdict(item) for item in result.items],
+    })
+
+
+def cmd_delete_post(args):
+    """删除我的帖子"""
+    client = get_client()
+    from ok.my_posts import delete_post
+    result = delete_post(
+        client,
+        subdomain=args.subdomain,
+        lang=args.lang,
+        index=args.index,
+    )
+    _output(result)
+
+
+def cmd_edit_post(args):
+    """获取帖子编辑链接"""
+    client = get_client()
+    from ok.my_posts import get_edit_url
+    result = get_edit_url(
+        client,
+        subdomain=args.subdomain,
+        lang=args.lang,
+        index=args.index,
+    )
+    _output(result)
+
+
 # ─── argument parser ────────────────────────────────────────────────────────
 
 
@@ -388,6 +467,34 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=float, default=120.0, help="等待超时秒数（默认 120）")
     p.add_argument("--country", default="singapore", help="国家（用于导航，默认 singapore）")
 
+    # ─── favorites ───────────────────────────────────────────
+    p = sub.add_parser("list-favorites", help="列出收藏列表")
+    p.add_argument("--subdomain", default="sg", help="国家子域（sg/us/ae …）")
+    p.add_argument("--lang", default="en")
+    p.add_argument("--max-results", type=int, default=50)
+
+    p = sub.add_parser("add-favorite", help="收藏帖子（通过详情页 URL）")
+    p.add_argument("--url", required=True, help="帖子详情页 URL")
+
+    p = sub.add_parser("remove-favorite", help="取消收藏帖子（通过详情页 URL）")
+    p.add_argument("--url", required=True, help="帖子详情页 URL")
+
+    # ─── my posts ────────────────────────────────────────────
+    p = sub.add_parser("list-my-posts", help="列出我的帖子")
+    p.add_argument("--subdomain", default="sg", help="国家子域（sg/us/ae …）")
+    p.add_argument("--lang", default="en")
+    p.add_argument("--state", default="active", choices=["active", "pending", "expired", "draft"])
+    p.add_argument("--max-results", type=int, default=50)
+
+    p = sub.add_parser("delete-post", help="删除我的帖子（按序号）")
+    p.add_argument("--subdomain", default="sg", help="国家子域（sg/us/ae …）")
+    p.add_argument("--lang", default="en")
+    p.add_argument("--index", type=int, default=0, help="帖子序号（0-based）")
+
+    p = sub.add_parser("edit-post", help="获取帖子编辑链接")
+    p.add_argument("--subdomain", default="sg", help="国家子域（sg/us/ae …）")
+    p.add_argument("--lang", default="en")
+    p.add_argument("--index", type=int, default=0, help="帖子序号（0-based）")
 
     return parser
 
@@ -407,6 +514,12 @@ _CMD_MAP = {
     "check-login": cmd_check_login,
     "login": cmd_login,
     "wait-login": cmd_wait_login,
+    "list-favorites": cmd_list_favorites,
+    "add-favorite": cmd_add_favorite,
+    "remove-favorite": cmd_remove_favorite,
+    "list-my-posts": cmd_list_my_posts,
+    "delete-post": cmd_delete_post,
+    "edit-post": cmd_edit_post,
 }
 
 
