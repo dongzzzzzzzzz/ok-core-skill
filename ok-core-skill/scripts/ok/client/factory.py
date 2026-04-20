@@ -2,17 +2,24 @@
 
 Detection order (each level falls through on failure):
   1. Bridge   — Chrome extension + bridge_server.py
-  2. CDP detect — probe localhost:9222-9224 for an existing debug session
-  3. CDP launch — auto-start Chrome with --remote-debugging-port
-  4. Playwright — headless with persistent context (always works)
+  2. CDP reuse — reconnect to a previously auto-launched Chrome via PID file
+  3. CDP detect — probe localhost:9222-9224 for any debug session
+  4. CDP launch — auto-start Chrome with --remote-debugging-port
+  5. Playwright — headless with persistent context (always works)
+
+Cross-process Chrome lifecycle is tracked via ~/.ok-agent/chrome.pid
+so that short-lived CLI invocations can reuse the same headed browser.
 """
 
 from __future__ import annotations
 
+import contextlib
+import json
 import logging
 import os
 import platform
 import shutil
+import signal
 import socket
 import subprocess
 import time
@@ -39,27 +46,35 @@ _CDP_PROBE_PORTS = (9222, 9223, 9224)
 _CDP_PROBE_TIMEOUT = 1.5
 _OK_AGENT_DIR = Path.home() / ".ok-agent"
 _CHROME_PROFILE_DIR = _OK_AGENT_DIR / "chrome-profile"
-_CHROME_STARTUP_WAIT = 8.0  # seconds to wait for Chrome to be ready
+_PID_FILE = _OK_AGENT_DIR / "chrome.pid"
+_CHROME_STARTUP_WAIT = 10.0
 _CHROME_STARTUP_POLL = 0.4
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
 
 def _env_flag(name: str) -> bool:
     v = os.environ.get(name, "").strip().lower()
     return v in ("1", "true", "yes", "on")
 
 
+def _cdp_endpoint_alive(url: str) -> bool:
+    """Quick check: is a CDP /json/version endpoint responding?"""
+    try:
+        req = urllib.request.Request(f"{url}/json/version", method="GET")
+        with urllib.request.urlopen(req, timeout=_CDP_PROBE_TIMEOUT):
+            return True
+    except Exception:
+        return False
+
+
 def _discover_cdp_url() -> str | None:
     """Probe common ports for an existing Chrome debug endpoint."""
     for port in _CDP_PROBE_PORTS:
         url = f"http://127.0.0.1:{port}"
-        try:
-            req = urllib.request.Request(f"{url}/json/version", method="GET")
-            with urllib.request.urlopen(req, timeout=_CDP_PROBE_TIMEOUT):
-                logger.info("Auto-detected CDP on port %d", port)
-                return url
-        except Exception:
-            continue
+        if _cdp_endpoint_alive(url):
+            logger.info("Auto-detected CDP on port %d", port)
+            return url
     return None
 
 
@@ -79,6 +94,43 @@ def _pick_free_port() -> int | None:
     return None
 
 
+def _pid_is_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except (OSError, ProcessLookupError):
+        return False
+
+
+# ── PID file management ──────────────────────────────────────────────────────
+
+
+def _write_pid_file(pid: int, port: int) -> None:
+    _OK_AGENT_DIR.mkdir(parents=True, exist_ok=True)
+    _PID_FILE.write_text(json.dumps({"pid": pid, "port": port}))
+
+
+def _read_pid_file() -> tuple[int, int] | None:
+    """Read (pid, port) from PID file, or None if missing/stale."""
+    try:
+        data = json.loads(_PID_FILE.read_text())
+        pid, port = int(data["pid"]), int(data["port"])
+    except Exception:
+        return None
+
+    if not _pid_is_alive(pid):
+        with contextlib.suppress(OSError):
+            _PID_FILE.unlink()
+        return None
+
+    return pid, port
+
+
+def _clear_pid_file() -> None:
+    with contextlib.suppress(OSError):
+        _PID_FILE.unlink()
+
+
 # ── Level 3: Chrome finder & launcher ────────────────────────────────────────
 
 _MACOS_CHROME_PATHS = (
@@ -96,15 +148,13 @@ _LINUX_CHROME_NAMES = (
 
 
 def _find_chrome_executable() -> str | None:
-    """Locate a Chrome/Chromium executable on the current system."""
     system = platform.system()
 
     if system == "Darwin":
         for p in _MACOS_CHROME_PATHS:
             if os.path.isfile(p) and os.access(p, os.X_OK):
                 return p
-        found = shutil.which("google-chrome") or shutil.which("chromium")
-        return found
+        return shutil.which("google-chrome") or shutil.which("chromium")
 
     if system == "Linux":
         for name in _LINUX_CHROME_NAMES:
@@ -113,9 +163,7 @@ def _find_chrome_executable() -> str | None:
                 return found
         return None
 
-    # Windows or unknown — best effort
-    found = shutil.which("chrome") or shutil.which("chromium")
-    return found
+    return shutil.which("chrome") or shutil.which("chromium")
 
 
 _chrome_process: subprocess.Popen | None = None
@@ -124,8 +172,7 @@ _chrome_process: subprocess.Popen | None = None
 def _launch_chrome_with_cdp() -> str | None:
     """Start a headed Chrome with a persistent profile and debugging port.
 
-    Returns the CDP base URL (e.g. ``http://127.0.0.1:9222``) on success,
-    or *None* if Chrome could not be found or started.
+    Returns the CDP base URL on success, or None.
     """
     global _chrome_process
 
@@ -136,10 +183,18 @@ def _launch_chrome_with_cdp() -> str | None:
 
     port = _pick_free_port()
     if port is None:
-        logger.info("No free port in %s for CDP; skipping auto-launch.", _CDP_PROBE_PORTS)
+        logger.info(
+            "No free port in %s for CDP; skipping auto-launch.",
+            _CDP_PROBE_PORTS,
+        )
         return None
 
     _CHROME_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Remove stale lock files that prevent Chrome from starting
+    lock_file = _CHROME_PROFILE_DIR / "SingletonLock"
+    with contextlib.suppress(OSError):
+        lock_file.unlink()
 
     args = [
         chrome,
@@ -154,6 +209,8 @@ def _launch_chrome_with_cdp() -> str | None:
         "--disable-popup-blocking",
         "--disable-sync",
         "--metrics-recording-only",
+        "--noerrdialogs",
+        "--hide-crash-restore-bubble",
     ]
 
     try:
@@ -170,25 +227,36 @@ def _launch_chrome_with_cdp() -> str | None:
     deadline = time.monotonic() + _CHROME_STARTUP_WAIT
 
     while time.monotonic() < deadline:
-        if _chrome_process.poll() is not None:
+        exit_code = _chrome_process.poll()
+        if exit_code is not None:
+            # Chrome exited immediately — profile likely locked by another
+            # instance. Check if that instance has CDP on any known port.
             logger.info(
-                "Chrome exited immediately (code %d); skipping.",
-                _chrome_process.returncode,
+                "Chrome exited (code %d); checking for existing instance.",
+                exit_code,
             )
             _chrome_process = None
+            existing = _discover_cdp_url()
+            if existing:
+                return existing
             return None
-        try:
-            req = urllib.request.Request(f"{cdp_url}/json/version", method="GET")
-            with urllib.request.urlopen(req, timeout=1.0):
-                logger.info(
-                    "Chrome auto-launched on port %d (profile: %s)",
-                    port, _CHROME_PROFILE_DIR,
-                )
-                return cdp_url
-        except Exception:
-            time.sleep(_CHROME_STARTUP_POLL)
 
-    logger.info("Chrome started but CDP not ready within %.1fs; skipping.", _CHROME_STARTUP_WAIT)
+        if _cdp_endpoint_alive(cdp_url):
+            logger.info(
+                "Chrome auto-launched (pid %d, port %d, profile: %s)",
+                _chrome_process.pid,
+                port,
+                _CHROME_PROFILE_DIR,
+            )
+            _write_pid_file(_chrome_process.pid, port)
+            return cdp_url
+
+        time.sleep(_CHROME_STARTUP_POLL)
+
+    logger.info(
+        "Chrome started but CDP not ready within %.1fs; skipping.",
+        _CHROME_STARTUP_WAIT,
+    )
     _terminate_chrome()
     return None
 
@@ -197,7 +265,6 @@ def _terminate_chrome() -> None:
     global _chrome_process
     if _chrome_process is None:
         return
-    import contextlib
 
     try:
         _chrome_process.terminate()
@@ -208,16 +275,25 @@ def _terminate_chrome() -> None:
     _chrome_process = None
 
 
+def _kill_stale_chrome(pid: int) -> None:
+    """Kill a previously auto-launched Chrome that is no longer reachable."""
+    with contextlib.suppress(OSError, ProcessLookupError):
+        os.kill(pid, signal.SIGTERM)
+    _clear_pid_file()
+
+
 # ── public API ───────────────────────────────────────────────────────────────
+
 
 def get_client() -> BaseClient:
     """Return an available BaseClient (singleton).
 
     Detection order:
       1. Bridge (Chrome extension + bridge_server.py)
-      2. CDP detect — explicit OK_CDP_URL env, or auto-detect ports
-      3. CDP launch — auto-start Chrome with persistent profile
-      4. Playwright headless with persistent context
+      2. CDP reuse (PID file from previous auto-launch)
+      3. CDP detect (explicit OK_CDP_URL env, or auto-detect ports)
+      4. CDP launch (auto-start Chrome with persistent profile)
+      5. Playwright headless with persistent context
     """
     global _client_instance
     if _client_instance:
@@ -236,7 +312,24 @@ def get_client() -> BaseClient:
     except Exception:
         pass
 
-    # --- Level 2: CDP detect ---
+    # --- Level 2: CDP reuse (PID file from previous auto-launch) ---
+    pid_info = _read_pid_file()
+    if pid_info:
+        pid, port = pid_info
+        cdp_url = f"http://127.0.0.1:{port}"
+        if _cdp_endpoint_alive(cdp_url):
+            client = _try_cdp_connect(cdp_url)
+            if client:
+                logger.info(
+                    "Reusing auto-launched Chrome (pid %d, port %d)",
+                    pid,
+                    port,
+                )
+                return client
+        # PID alive but CDP dead — kill the zombie
+        _kill_stale_chrome(pid)
+
+    # --- Level 3: CDP detect (env var or port scan) ---
     cdp_url = os.environ.get(_ENV_CDP_URL, "").strip()
     if not cdp_url:
         cdp_url = _discover_cdp_url() or ""
@@ -246,7 +339,7 @@ def get_client() -> BaseClient:
         if client:
             return client
 
-    # --- Level 3: CDP auto-launch ---
+    # --- Level 4: CDP auto-launch ---
     if not _env_flag(_ENV_NO_AUTO_LAUNCH) and not _env_flag(_ENV_HEADLESS):
         launched_url = _launch_chrome_with_cdp()
         if launched_url:
@@ -254,7 +347,7 @@ def get_client() -> BaseClient:
             if client:
                 return client
 
-    # --- Level 4: Playwright headless persistent ---
+    # --- Level 5: Playwright headless persistent ---
     logger.info("No bridge/CDP; using headless Playwright (persistent).")
     try:
         from .playwright_client import PlaywrightClient
@@ -267,7 +360,7 @@ def get_client() -> BaseClient:
 
 
 def _try_cdp_connect(cdp_url: str) -> BaseClient | None:
-    """Attempt CDP connection; return client or None (respects STRICT mode)."""
+    """Attempt CDP connection; return client or None (respects STRICT)."""
     global _client_instance
     try:
         cdp_client = CdpClient(cdp_url, connect_timeout_ms=3000.0)
@@ -277,7 +370,7 @@ def _try_cdp_connect(cdp_url: str) -> BaseClient | None:
     except CdpConnectionError as e:
         if _env_flag(_ENV_CDP_STRICT):
             raise
-        logger.info("CDP unavailable (%s), falling back.", e)
+        logger.info("CDP connect failed (%s), falling back.", e)
     except Exception as e:
         if _env_flag(_ENV_CDP_STRICT):
             raise
@@ -286,7 +379,7 @@ def _try_cdp_connect(cdp_url: str) -> BaseClient | None:
 
 
 def shutdown() -> None:
-    """Clean up any resources held by the factory (e.g. auto-launched Chrome)."""
+    """Clean up resources (does NOT kill the auto-launched Chrome;
+    it persists for future CLI invocations)."""
     global _client_instance
     _client_instance = None
-    _terminate_chrome()

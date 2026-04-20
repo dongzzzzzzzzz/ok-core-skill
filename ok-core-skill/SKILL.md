@@ -54,7 +54,7 @@ uv run playwright install chromium
 
 按优先级判断用户意图，路由到对应处理：
 
-0. **搜索/浏览**（"找夏威夷房源 / 搜索东京的工作 / 温哥华二手车 / 夏威夷50万以下的房子"）→ 执行 `ok-search` 技能
+0. **搜索/浏览**（"找夏威夷房源 / 搜索东京的工作 / 温哥华二手车 / 夏威夷50万以下的房子"）→ **先读取 `skills/ok-search/SKILL.md`**，按其中步骤执行（禁止跳过）
 1. **地区切换**（"切换到新加坡 / 切换城市 / 列出国家 / 列出城市"）→ 执行 `ok-locale` 技能
 2. **推荐/详情**（"首页推荐 / 查看帖子详情"）→ 执行 `ok-explore` 技能
 3. **登录检测**（"检查登录 / 登录状态"）→ 执行 `ok-auth` 技能
@@ -77,16 +77,7 @@ uv run playwright install chromium
 
 ### ok-search — 搜索与浏览
 
-所有搜索帖子、浏览分类的请求均由此技能处理。支持价格区间筛选。
-
-```bash
-uv run --project <SKILL_DIR> ok-cli full-search \
-  --country <国家> --city <城市名> \
-  [--category <分类code>] [--keyword <搜索关键词>] \
-  [--min-price X] [--max-price Y]
-```
-
-内部自动完成：打开网站 → UI 搜索城市并点选切换 → 点击分类 → 输入关键词搜索 → 价格筛选 → 提取结果。`--category` 和 `--keyword` 至少提供一个。
+所有搜索/浏览请求，**必须先读取 `skills/ok-search/SKILL.md`**，按其步骤解析意图、查询城市、执行搜索。
 
 ### ok-locale — 多国家/城市/语言管理
 

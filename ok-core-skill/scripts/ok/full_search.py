@@ -79,13 +79,16 @@ def full_search_flow(
         result.final_url = client.get_url()
         return result
 
-    # --- Step 2: 点击分类（先进入列表页，filter bar 才可用）---
+    # --- Step 2: 进入分类页（匹配 slug + URL 导航）---
+    resolved_category = category
     if category:
         step2 = _step_click_category(client, category)
         result.steps.append(step2)
+        resolved_category = step2.detail.get("resolved_slug", category)
+        result.flow["resolved_category"] = resolved_category
 
     # --- Step 3: 切换城市（优先 UI，fallback API+URL）---
-    step3 = _step_switch_city(client, country, city_keyword, lang, category)
+    step3 = _step_switch_city(client, country, city_keyword, lang, resolved_category)
     result.steps.append(step3)
     city_code = step3.detail.get("city_code", city_keyword)
     result.flow["city_code"] = city_code
@@ -366,48 +369,92 @@ def _switch_city_via_api(
 
 
 def _step_click_category(client: BaseClient, category_code: str) -> StepResult:
-    """Step 3: 在页面上点击分类图标"""
+    """Step 2: 在首页点击 QuickAccessArea 分类图标
+
+    流程：
+    1. 等待首页 QuickAccessArea 渲染
+    2. 提取所有可见分类图标的 slug + 文本
+    3. 将用户输入模糊匹配到实际 slug
+    4. 点击对应图标
+    5. 清理 URL 中的 ?iconSource= 参数
+    """
     try:
-        logger.info("Step 3: 点击分类 → %s", category_code)
+        logger.info("Step 2: 点击分类 → %s", category_code)
 
-        # 通过 JS 查找并点击匹配的分类链接
-        js = f"""
-        (() => {{
-            // 策略 1: 按 href 中的 cate-{{code}} 精确匹配
-            const links = document.querySelectorAll("a[href*='/cate-{category_code}']");
-            for (const link of links) {{
-                if (link.offsetParent !== null) {{
-                    link.click();
-                    return {{ matched: true, method: "href", text: link.textContent?.trim() }};
-                }}
-            }}
-
-            // 策略 2: 按文本内容模糊匹配所有分类入口
-            const allLinks = document.querySelectorAll("{sel.HOMEPAGE_CATEGORY_ICON}");
-            const keyword = "{category_code}".toLowerCase();
-            for (const el of allLinks) {{
-                const text = el.textContent?.trim()?.toLowerCase() || '';
-                if (text.includes(keyword)) {{
-                    el.click();
-                    return {{ matched: true, method: "text", text: el.textContent?.trim() }};
-                }}
-            }}
-
-            return {{ matched: false }};
-        }})()
-        """
-        click_result = client.evaluate(js)
-
-        if not click_result or not click_result.get("matched"):
-            logger.warning("未找到分类图标，尝试通过 URL 直接导航")
+        # 等待首页分类图标区域渲染
+        qa_sel = sel.HOMEPAGE_QUICK_ACCESS_ITEM
+        try:
+            client.wait_for_selector(qa_sel, timeout=8000)
+        except Exception:
+            logger.warning("QuickAccessArea 未加载，降级 URL 导航")
             return _step_click_category_fallback(client, category_code)
+
+        short_delay()
+
+        # 提取可见分类图标（QuickAccessArea_item）
+        page_cats = client.evaluate(f"""(() => {{
+            const icons = document.querySelectorAll("{qa_sel}");
+            const seen = new Set();
+            const result = [];
+            for (const el of icons) {{
+                const href = el.getAttribute('href') || '';
+                const match = href.match(/\\/cate-([^/?]+)/);
+                if (!match) continue;
+                const slug = match[1];
+                if (seen.has(slug)) continue;
+                seen.add(slug);
+                const text = el.textContent?.trim() || '';
+                const rect = el.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) continue;
+                result.push({{ slug, text: text.substring(0, 60) }});
+            }}
+            return result;
+        }})()""")
+
+        if not page_cats:
+            logger.warning("QuickAccessArea 中未找到分类图标")
+            return _step_click_category_fallback(client, category_code)
+
+        logger.info(
+            "首页分类: %s",
+            [f"{c['slug']}({c['text']})" for c in page_cats],
+        )
+
+        matched_slug = _match_category_slug(category_code, page_cats)
+        if not matched_slug:
+            logger.warning(
+                "分类 '%s' 无法匹配到首页图标: %s",
+                category_code,
+                [c["slug"] for c in page_cats],
+            )
+            return _step_click_category_fallback(client, category_code)
+
+        logger.info("分类匹配: '%s' → '%s'", category_code, matched_slug)
+
+        # 点击 QuickAccessArea 中对应的可见图标
+        click_ok = client.evaluate(f"""(() => {{
+            const icons = document.querySelectorAll("{qa_sel}");
+            for (const el of icons) {{
+                const href = el.getAttribute('href') || '';
+                if (href.includes('/cate-{matched_slug}/') || href.includes('/cate-{matched_slug}?')) {{
+                    el.scrollIntoViewIfNeeded?.();
+                    el.click();
+                    return true;
+                }}
+            }}
+            return false;
+        }})()""")
+
+        if not click_ok:
+            logger.warning("图标点击失败，降级 URL 导航")
+            return _step_click_category_fallback(client, matched_slug)
 
         medium_delay()
         client.wait_dom_stable(timeout=15000)
 
-        # 首页分类链接常带 ?iconSource= 参数，会导致筛选栏缺少城市 filter
+        # iconSource 参数会导致后续筛选栏异常，清理掉
         current_url = client.get_url()
-        if "?" in current_url:
+        if "iconSource" in current_url:
             clean_url = current_url.split("?")[0]
             client.navigate(clean_url)
             client.wait_dom_stable(timeout=10000)
@@ -417,8 +464,7 @@ def _step_click_category(client: BaseClient, category_code: str) -> StepResult:
             step="click_category", success=True,
             detail={
                 "category": category_code,
-                "method": click_result.get("method"),
-                "matched_text": click_result.get("text"),
+                "resolved_slug": matched_slug,
                 "url": client.get_url(),
             },
         )
@@ -428,8 +474,52 @@ def _step_click_category(client: BaseClient, category_code: str) -> StepResult:
         return _step_click_category_fallback(client, category_code)
 
 
+def _match_category_slug(
+    user_input: str,
+    page_cats: list[dict],
+) -> str | None:
+    """将用户输入的分类 code 匹配到页面上的实际 slug。
+
+    Handles mismatches like "real-estate-property" -> "property",
+    "jobs" -> "jobs", "Real Estate" -> "property".
+    """
+    code = user_input.lower().strip()
+    code_words = set(code.replace("-", " ").replace("_", " ").split())
+
+    # Priority 1: exact slug match
+    for cat in page_cats:
+        if cat["slug"].lower() == code:
+            return cat["slug"]
+
+    # Priority 2: slug is a suffix of the input (real-estate-property → property)
+    for cat in page_cats:
+        slug = cat["slug"].lower()
+        if code.endswith(slug) or code.endswith(f"-{slug}"):
+            return cat["slug"]
+
+    # Priority 3: slug contained in input or vice versa
+    for cat in page_cats:
+        slug = cat["slug"].lower()
+        if slug in code or code in slug:
+            return cat["slug"]
+
+    # Priority 4: word overlap with display text
+    for cat in page_cats:
+        text_words = set(cat["text"].lower().replace("-", " ").split())
+        if code_words & text_words:
+            return cat["slug"]
+
+    # Priority 5: word overlap with slug
+    for cat in page_cats:
+        slug_words = set(cat["slug"].lower().replace("-", " ").split())
+        if code_words & slug_words:
+            return cat["slug"]
+
+    return None
+
+
 def _step_click_category_fallback(client: BaseClient, category_code: str) -> StepResult:
-    """Step 3 降级：从当前 URL 构造分类 URL 并导航"""
+    """Step 2 降级：从当前 URL 构造分类 URL 并导航"""
     try:
         locale = get_current_locale(client)
         if not locale:
@@ -440,7 +530,7 @@ def _step_click_category_fallback(client: BaseClient, category_code: str) -> Ste
 
         from .urls import build_category_url
         url = build_category_url(locale.subdomain, locale.lang, locale.city, category_code)
-        logger.info("Step 3 降级: 导航到分类页 %s", url)
+        logger.info("Step 2 降级: 导航到分类页 %s", url)
 
         client.navigate(url)
         client.wait_dom_stable(timeout=15000)
@@ -451,7 +541,7 @@ def _step_click_category_fallback(client: BaseClient, category_code: str) -> Ste
             detail={"category": category_code, "url": url},
         )
     except Exception as e:
-        logger.error("Step 3 降级失败: %s", e)
+        logger.error("Step 2 降级失败: %s", e)
         return StepResult(step="click_category_fallback", success=False, error=str(e))
 
 

@@ -61,6 +61,8 @@ COUNTRY_CHANGE_BTN = "[class*='changeCountry'], [class*='change-country']"
 # ─── 首页分类图标 ─────────────────────────────────────────────
 HOMEPAGE_CATEGORY_LINK = "a[href*='/cate-']"
 HOMEPAGE_CATEGORY_ICON = "a[href*='/cate-'], [class*='categoryIcon'], [class*='category-icon']"
+# QuickAccessArea：首页可见的分类快捷入口行（Marketplace / Jobs / Property / Cars …）
+HOMEPAGE_QUICK_ACCESS_ITEM = "a[class*='QuickAccessArea_item__']"
 
 # ─── 筛选/排序 ─────────────────────────────────────────────
 FILTER_SORT = "[class*='sortFilter'], [class*='sort-filter']"

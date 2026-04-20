@@ -29,12 +29,13 @@ Chrome Extension (OK Bridge)
 ok.com 网页
 ```
 
-**客户端四级检测**（`scripts/ok/client/factory.py` 的 `get_client()`，零配置）
+**客户端五级检测**（`scripts/ok/client/factory.py` 的 `get_client()`，零配置）
 
 1. **Bridge**：Chrome 扩展 + bridge_server.py 均在线时使用（最佳体验）。
-2. **CDP 探测**：探测 `127.0.0.1:9222/9223/9224` 是否有已开调试端口的 Chrome。也可通过环境变量 `OK_CDP_URL` 强制指定。
-3. **CDP 自启动**：本地找不到调试端口时，自动启动一个 headed Chrome 实例（`--remote-debugging-port`），使用持久化 profile `~/.ok-agent/chrome-profile/`，首次登录后后续自动复用会话。设置 `OK_NO_AUTO_LAUNCH=1` 或 `OK_HEADLESS=1` 可跳过此步。
-4. **Playwright 无头**：以上皆不可用时兜底，使用 `launch_persistent_context`（profile 在 `~/.ok-agent/pw-profile/`），cookies/localStorage 自动跨 session 保留。
+2. **CDP 复用**：通过 PID 文件 (`~/.ok-agent/chrome.pid`) 检测之前自启动的 Chrome 是否仍在运行，直接复用（跨进程持久化，CLI 短命进程场景下关键）。
+3. **CDP 探测**：探测 `127.0.0.1:9222/9223/9224` 是否有已开调试端口的 Chrome。也可通过环境变量 `OK_CDP_URL` 强制指定。
+4. **CDP 自启动**：本地找不到调试端口时，自动启动一个 headed Chrome 实例（`--remote-debugging-port`），使用持久化 profile `~/.ok-agent/chrome-profile/`，并写入 PID 文件供后续复用。Chrome 在 CLI 退出后不被杀死，下次运行自动重连。设置 `OK_NO_AUTO_LAUNCH=1` 或 `OK_HEADLESS=1` 可跳过此步。
+5. **Playwright 无头**：以上皆不可用时兜底，使用 `launch_persistent_context`（profile 在 `~/.ok-agent/pw-profile/`），cookies/localStorage 自动跨 session 保留。
 
 | 环境变量 | 作用 | 默认 |
 |---|---|---|
