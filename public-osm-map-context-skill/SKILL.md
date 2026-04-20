@@ -76,3 +76,4 @@ The CLI always returns JSON. Each listing includes:
 - `source=photon` and `confidence=low` should be treated as low-confidence screening signals, not address-level proof.
 - If geocoding fails, still return `verification_links.google_maps_manual` so the decision layer can give the user a manual validation path.
 - `verification_links` are map verification links only; they must not replace the original listing URL from `listing_ref.url`.
+- If `listing_ref.url` is missing, include `original_listing_url_missing`; decision layers should not display that specific listing by name until the original post URL is available.

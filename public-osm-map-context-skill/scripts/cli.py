@@ -823,13 +823,16 @@ def analyze_batch(args: argparse.Namespace) -> dict[str, Any]:
     status = "ok"
     for listing, geo, point in prepared:
         limitations = ["not_google_maps_verified", "public_transport_time_not_verified", "osm_coverage_may_be_incomplete"]
+        ref = listing_ref(listing)
         result: dict[str, Any] = {
             "id": listing["id"],
-            "listing_ref": listing_ref(listing),
+            "listing_ref": ref,
             "geo": geo,
             "verification_links": verification_links(listing, geo),
             "limitations": list(limitations),
         }
+        if not ref.get("url"):
+            result["limitations"].append("original_listing_url_missing")
         if geo.get("confidence") == "low" and geo.get("precision") != "missing":
             result["limitations"].append("low_geocode_confidence")
         if point is None:

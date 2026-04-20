@@ -143,6 +143,8 @@ python3 public-osm-map-context-skill/scripts/cli.py analyze-batch --input listin
 
 `listing_ref` 是原始房源的轻量回显，只用于保留决策层必需的展示和 join 信息。不得回显完整 `description`。
 
+如果输入房源缺少 `url`，地图结果应在 `limitations` 中加入 `original_listing_url_missing`。`property-advisor` 看到该 limitation 时，不要点名展示这套房，只能汇总说明有缺原帖链接的候选需要补数据。
+
 `status` 可以是：
 
 - `ok`：地图上下文可用
@@ -178,7 +180,7 @@ python3 public-osm-map-context-skill/scripts/cli.py analyze-batch --input listin
 
 如果 `geo.precision=missing`，仍必须输出 `verification_links.google_maps_manual`。最终回答应说明该链接用于手动验证通勤路线、最近公共交通、超市/药店和噪音源。
 
-最终回答必须区分两类链接：房源详情用原始 `url` 或 `listing_ref.url`；地图核验用 `verification_links.google_maps_manual` 或 `verification_links.openstreetmap`。不能把地图核验链接写成房源详情链接。
+最终回答必须区分两类链接：房源详情用原始 `url` 或 `listing_ref.url`；地图核验用 `verification_links.google_maps_manual` 或 `verification_links.openstreetmap`。不能把地图核验链接写成房源详情链接。任何被点名展示的具体房源都必须有房源详情链接；如果只有地图核验链接，不要点名展示该房源。
 
 所有距离表达必须有明确对象：
 
@@ -207,4 +209,4 @@ python3 public-osm-map-context-skill/scripts/cli.py analyze-batch --input listin
 
 不要要求房源数据源增加经纬度字段；如果上游没有坐标，地图 skill 自行降级处理。
 
-最终回答应以原始房源/详情数据为主，地图数据只作为辅助上下文。推荐某套房时必须优先使用原帖 `url`；`verification_links.google_maps_manual` 只能标为“地图复核链接”。
+最终回答应以原始房源/详情数据为主，地图数据只作为辅助上下文。展示某套房时必须优先使用原帖 `url`；`verification_links.google_maps_manual` 只能标为“地图复核链接”。

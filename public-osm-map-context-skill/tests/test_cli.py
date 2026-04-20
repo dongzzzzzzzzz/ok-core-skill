@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
@@ -14,7 +15,7 @@ FIXTURES = ROOT / "tests" / "fixtures"
 
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from cli import JsonCache, PublicOsmClient, extract_address_from_text, geocode_listing  # noqa: E402
+from cli import JsonCache, PublicOsmClient, analyze_batch, extract_address_from_text, geocode_listing  # noqa: E402
 
 
 class FakeGeocoder:
@@ -115,6 +116,46 @@ class CliEndToEndTest(unittest.TestCase):
 
         self.assertIsNone(timeout)
         self.assertEqual(client.usage["errors"][0]["error"], "runtime_budget_exhausted")
+
+    def test_missing_original_listing_url_is_marked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            input_path = Path(tmp) / "listings.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "listings": [
+                            {
+                                "id": "missing_url",
+                                "title": "Apartment in Southbank",
+                                "price": "A$500/wk",
+                                "location": "Southbank VIC",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = argparse.Namespace(
+                input=str(input_path),
+                fixture_dir=str(FIXTURES / "osm"),
+                cache_dir=tmp,
+                cache_ttl_days=30,
+                timeout=8,
+                max_live_seconds=45,
+                overpass_retries=1,
+                geocode_strategy="photon-first",
+                destination="Melbourne CBD VIC",
+                city="melbourne",
+                incremental=True,
+                cluster_padding_km=1.0,
+                level="deep",
+            )
+
+            payload = analyze_batch(args)
+
+        item = payload["listings"][0]
+        self.assertIsNone(item["listing_ref"]["url"])
+        self.assertIn("original_listing_url_missing", item["limitations"])
 
     def test_extracts_ok_com_concatenated_australian_address(self) -> None:
         title = "The Archive, Melbourne205 Normanby Rd, Southbank VIC 3006, Australia"
