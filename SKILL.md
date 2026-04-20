@@ -178,10 +178,11 @@ metadata:
 本 skill 不直接抓取房源，也不直接调用地图。Agent 应按可用能力编排：
 
 1. 先通过房源数据源获取 listings/detail
-2. 如果用户关心通勤、周边、区域、噪音或生活便利，且环境中存在 `public-osm-map-context-skill`，可把现有房源字段原样传给地图 skill
-3. 不要求 `ok-core-skill` 改字段；如果没有完整地址或经纬度，地图 skill 应返回低精度或 degraded 结果
-4. 本 skill 消费地图结果时必须保留 `source`、`precision`、`confidence` 和 `limitations`
-5. 地图 skill 不可用时，继续给房源初筛和用户可手动验证的下一步，不要中断
+2. 如果用户提到 CBD 附近、通勤、周边、区域、交通、配套、噪音、安全，且环境中存在 `public-osm-map-context-skill`，首轮拿到房源后必须尝试地图上下文
+3. 不能因为 `address/location` 字段缺失或格式不标准就跳过地图；应把 `title`、`location`、`description`、`url` 等现有字段原样交给地图 skill 做 best-effort
+4. 不要求 `ok-core-skill` 改字段；如果没有完整地址或经纬度，地图 skill 应尝试从标题提取地址，失败时返回验证链接和 degraded 结果
+5. 本 skill 消费地图结果时必须保留 `source`、`precision`、`confidence`、`limitations`、`geocode_query_used` 和 `address_extraction_source`
+6. 地图 skill 不可用或降级时，继续给房源初筛和用户可手动验证的下一步，不要中断
 
 ## 核心决策维度
 
@@ -306,6 +307,7 @@ metadata:
 - 哪些房源应排除或谨慎看，例如异常低价、非目标卧室数、买卖房混入租房结果
 - 每套推荐缺什么关键字段，例如面积、卫浴、是否整租、家具、bill、入住日期
 - 地图不可用或低置信时，仍要给价格、区域、房源质量和下一步核验动作，不能只说“需复核”
+- 地图降级或 `geo_missing` 时，仍要给每套候选的 Google Maps 验证链接，并说明点开后要核实通勤路线、最近车站、超市/药店和噪音源
 
 地图上下文是辅助，不是主结论。地图低置信时，降级地图表达，但不要放弃房产决策。
 

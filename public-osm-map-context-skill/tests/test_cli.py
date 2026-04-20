@@ -14,7 +14,19 @@ FIXTURES = ROOT / "tests" / "fixtures"
 
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from cli import JsonCache, PublicOsmClient  # noqa: E402
+from cli import JsonCache, PublicOsmClient, extract_address_from_text, geocode_listing  # noqa: E402
+
+
+class FakeGeocoder:
+    def geocode(self, query: str):
+        if query == "205 Normanby Rd, Southbank VIC 3006, Australia":
+            return {
+                "lat": -37.8252,
+                "lng": 144.9558,
+                "display_name": query,
+                "source": "fixture_nominatim",
+            }
+        return None
 
 
 class CliEndToEndTest(unittest.TestCase):
@@ -90,6 +102,72 @@ class CliEndToEndTest(unittest.TestCase):
 
         self.assertIsNone(timeout)
         self.assertEqual(client.usage["errors"][0]["error"], "runtime_budget_exhausted")
+
+    def test_extracts_ok_com_concatenated_australian_address(self) -> None:
+        title = "The Archive, Melbourne205 Normanby Rd, Southbank VIC 3006, Australia"
+
+        address = extract_address_from_text(title)
+
+        self.assertEqual(address, "205 Normanby Rd, Southbank VIC 3006, Australia")
+
+    def test_title_address_is_used_when_structured_location_is_missing(self) -> None:
+        listing = {
+            "title": "The Archive, Melbourne205 Normanby Rd, Southbank VIC 3006, Australia",
+            "price": "A$645 per week",
+            "url": "https://example.test/archive",
+        }
+
+        geo = geocode_listing(FakeGeocoder(), listing)
+
+        self.assertEqual(geo["precision"], "address")
+        self.assertEqual(geo["geocode_query_used"], "205 Normanby Rd, Southbank VIC 3006, Australia")
+        self.assertEqual(geo["address_extraction_source"], "title")
+
+    def test_title_address_beats_area_only_location(self) -> None:
+        listing = {
+            "title": "The Archive, Melbourne205 Normanby Rd, Southbank VIC 3006, Australia",
+            "location": "Melbourne",
+            "price": "A$645 per week",
+        }
+
+        geo = geocode_listing(FakeGeocoder(), listing)
+
+        self.assertEqual(geo["precision"], "address")
+        self.assertEqual(geo["geocode_query_used"], "205 Normanby Rd, Southbank VIC 3006, Australia")
+        self.assertEqual(geo["address_extraction_source"], "title")
+
+    def test_ok_com_title_fixture_does_not_degrade_all_listings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "--cache-dir",
+                    tmp,
+                    "analyze-batch",
+                    "--input",
+                    str(FIXTURES / "ok_com_melbourne_titles.json"),
+                    "--destination",
+                    "Melbourne CBD VIC",
+                    "--city",
+                    "melbourne",
+                    "--incremental",
+                    "--fixture-dir",
+                    str(FIXTURES / "osm"),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+        payload = json.loads(proc.stdout)
+        self.assertEqual(len(payload["listings"]), 14)
+        self.assertTrue(any(item["geo"]["precision"] != "missing" for item in payload["listings"]))
+        for item in payload["listings"]:
+            self.assertIn("google_maps_manual", item["verification_links"])
+        archive = next(item for item in payload["listings"] if item["id"] == "ok_title_archive")
+        self.assertEqual(archive["geo"]["geocode_query_used"], "205 Normanby Rd, Southbank VIC 3006, Australia")
+        self.assertEqual(archive["geo"]["address_extraction_source"], "title")
 
 
 if __name__ == "__main__":

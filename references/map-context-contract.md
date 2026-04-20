@@ -4,6 +4,8 @@
 
 本 skill 不要求 `ok-core-skill` 或其他房源数据源改造字段。地图 skill 应基于当前已有的 `title`、`location`、`url`、`description`、`address`、`lat`、`lng` 做 best-effort 分析。
 
+如果 `address` 和 `location` 缺失或质量低，地图 skill 应尝试从 `title` 或 `description` 中提取地址。OK.com 常见标题会把楼名、城市、地址和价格粘在一起，例如 `The Archive, Melbourne205 Normanby Rd, Southbank VIC 3006, Australia`，地图 skill 应先提取 `205 Normanby Rd, Southbank VIC 3006, Australia` 再 geocode。
+
 发布时建议把 `public-osm-map-context-skill` 作为独立 skill 安装或注册；如果运行环境不能发现 nested skill，Agent 仍可按本契约调用当前仓库的参考 CLI。`property-advisor` 不应假设地图 skill 一定存在。
 
 当前仓库提供一个参考实现：
@@ -65,7 +67,7 @@ python3 public-osm-map-context-skill/scripts/cli.py analyze-batch --input listin
 }
 ```
 
-如果只有 `location`，地图 skill 应返回区域级结果，不应伪装成地址级精度。
+如果只有 `location`，地图 skill 应返回区域级结果，不应伪装成地址级精度。如果 `location` 只是城市/区域但 `title` 或 `description` 能提取完整街道地址，应优先使用提取出的街道地址。
 
 ---
 
@@ -83,7 +85,9 @@ python3 public-osm-map-context-skill/scripts/cli.py analyze-batch --input listin
         "lng": 144.958,
         "precision": "address",
         "source": "nominatim_or_photon",
-        "confidence": "medium"
+        "confidence": "medium",
+        "geocode_query_used": "205 Normanby Rd, Southbank VIC 3006, Australia",
+        "address_extraction_source": "title"
       },
       "destination_access": {
         "origin": "205 Normanby Rd, Southbank VIC 3006",
@@ -159,6 +163,8 @@ python3 public-osm-map-context-skill/scripts/cli.py analyze-batch --input listin
 | `precision=missing` | “地图信息不足，需手动验证” | 任何精确距离或设施数量 |
 | `status=degraded` | “地图深度分析暂不可用，建议打开链接复核” | 假装已完成地图分析 |
 
+如果 `geo.precision=missing`，仍必须输出 `verification_links.google_maps_manual`。最终回答应说明该链接用于手动验证通勤路线、最近公共交通、超市/药店和噪音源。
+
 所有距离表达必须有明确对象：
 
 - 到目的地：必须写成“从 `[房源地址/标题]` 到 `[用户目的地]` 的直线估算距离约 X km”，不能只写“直线约 X km”
@@ -182,5 +188,6 @@ python3 public-osm-map-context-skill/scripts/cli.py analyze-batch --input listin
 2. 如果用户关心通勤、周边或区域风险，且环境中存在地图 skill，则调用地图 skill
 3. 将地图 skill 的 JSON 与房源数据一起交给 `property-advisor`
 4. 如果地图 skill 不存在或返回 degraded，仍继续完成初筛推荐，并明确地图信息未确认
+5. 不要因为 `address/location` 为空就跳过地图；地图 skill 可以从 `title` 或 `description` 做 best-effort 地址提取
 
 不要要求房源数据源增加经纬度字段；如果上游没有坐标，地图 skill 自行降级处理。

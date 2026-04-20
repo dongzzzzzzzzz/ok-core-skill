@@ -12,6 +12,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -90,6 +91,13 @@ RISK_TAGS = [
 class Point:
     lat: float
     lng: float
+
+
+@dataclass
+class AddressCandidate:
+    query: str
+    source: str
+    precision: str
 
 
 class JsonCache:
@@ -399,34 +407,145 @@ def meters_range(distance_m: float) -> str:
     return f"{low}-{high}"
 
 
+STREET_SUFFIX_RE = (
+    r"Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Court|Ct|"
+    r"Place|Pl|Parade|Pde|Terrace|Tce|Highway|Hwy|Crescent|Cres|Square|Sq|Circuit|Cct"
+)
+ADDRESS_START_RE = re.compile(
+    rf"(?:[A-Za-z0-9-]+/)?\d{{1,6}}[A-Za-z]?\s+"
+    rf"(?:[A-Za-z0-9'’.-]+\s+){{0,8}}(?:{STREET_SUFFIX_RE})\b",
+    re.IGNORECASE,
+)
+ADDRESS_END_RE = re.compile(
+    r"(?:\b(?:VIC|NSW|QLD|SA|WA|TAS|ACT|NT)\s+\d{4}\b(?:,\s*Australia)?|"
+    r"\b(?:Abu Dhabi|Dubai)\b(?:\s*[-,]\s*(?:United Arab Emirates|UAE))?)",
+    re.IGNORECASE,
+)
+PRICE_RE = re.compile(r"\s+(?:A\$|AED|USD|US\$|\$|CNY|RMB|¥)\s*[\d,]", re.IGNORECASE)
+BEDROOM_RE = re.compile(r"\b\d+\s*(?:bed|beds|bedroom|bedrooms|br)(?=\d|\b)", re.IGNORECASE)
+
+
+def normalize_address_text(value: str) -> str:
+    text = " ".join(value.replace("\u00a0", " ").split())
+    text = PRICE_RE.split(text)[0]
+    return text.strip(" ,;-")
+
+
+def score_address_candidate(value: str) -> tuple[int, int]:
+    normalized = value.lower()
+    score = 0
+    if re.search(r"\b(?:vic|nsw|qld|sa|wa|tas|act|nt)\s+\d{4}\b", normalized):
+        score += 40
+    if "australia" in normalized or "united arab emirates" in normalized or "uae" in normalized:
+        score += 20
+    if BEDROOM_RE.search(normalized):
+        score -= 25
+    if len(value) > 120:
+        score -= 20
+    return score, -len(value)
+
+
+def clean_address_candidate(value: str) -> str:
+    value = BEDROOM_RE.split(value)[-1]
+    return normalize_address_text(value)
+
+
+def extract_address_from_text(value: Any) -> str:
+    text = safe_text(value)
+    if not text:
+        return ""
+    normalized = normalize_address_text(text)
+    candidates: list[str] = []
+    for start in ADDRESS_START_RE.finditer(normalized):
+        tail = normalized[start.end() : start.end() + 180]
+        end = ADDRESS_END_RE.search(tail)
+        if end:
+            candidate = normalized[start.start() : start.end() + end.end()]
+        else:
+            candidate = start.group(0)
+        candidate = clean_address_candidate(candidate)
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+    if not candidates:
+        return ""
+    return max(candidates, key=score_address_candidate)
+
+
+def looks_like_street_address(value: str) -> bool:
+    return bool(ADDRESS_START_RE.search(value))
+
+
+def build_address_candidate(listing: dict[str, Any]) -> AddressCandidate | None:
+    address = safe_text(listing.get("address"))
+    if address and looks_like_street_address(address):
+        return AddressCandidate(address, "address", "address")
+
+    location = safe_text(listing.get("location"))
+    if location and looks_like_street_address(location):
+        return AddressCandidate(location, "location", "address")
+
+    title_address = extract_address_from_text(listing.get("title"))
+    if title_address:
+        return AddressCandidate(title_address, "title", "address")
+
+    description_address = extract_address_from_text(listing.get("description"))
+    if description_address:
+        return AddressCandidate(description_address, "description", "address")
+
+    if address:
+        return AddressCandidate(address, "address", "area")
+
+    if location:
+        return AddressCandidate(location, "location", "area")
+
+    return None
+
+
 def geocode_listing(client: PublicOsmClient, listing: dict[str, Any]) -> dict[str, Any]:
     lat = as_float(listing.get("lat"))
     lng = as_float(listing.get("lng"))
     if lat is not None and lng is not None:
         precision = listing.get("geo_precision") or ("address" if listing.get("address") else "area")
+        query = safe_text(listing.get("address")) or safe_text(listing.get("location")) or safe_text(listing.get("title"))
         return {
             "lat": lat,
             "lng": lng,
             "precision": precision,
             "source": "input",
             "confidence": "high" if precision == "address" else "medium",
+            "geocode_query_used": query,
+            "address_extraction_source": "input_coordinates",
         }
 
-    address = safe_text(listing.get("address"))
-    location = safe_text(listing.get("location"))
-    query = address or location
-    if not query:
-        return {"lat": None, "lng": None, "precision": "missing", "source": None, "confidence": "low"}
+    candidate = build_address_candidate(listing)
+    if not candidate:
+        return {
+            "lat": None,
+            "lng": None,
+            "precision": "missing",
+            "source": None,
+            "confidence": "low",
+            "geocode_query_used": None,
+            "address_extraction_source": None,
+        }
 
-    result = client.geocode(query)
+    result = client.geocode(candidate.query)
     if not result:
-        return {"lat": None, "lng": None, "precision": "missing", "source": "nominatim", "confidence": "low"}
+        return {
+            "lat": None,
+            "lng": None,
+            "precision": "missing",
+            "source": "nominatim",
+            "confidence": "low",
+            "geocode_query_used": candidate.query,
+            "address_extraction_source": candidate.source,
+        }
 
     source = result.get("source", "nominatim")
-    if address and source in {"nominatim", "fixture_nominatim"}:
+    if candidate.precision == "address" and source in {"nominatim", "fixture_nominatim"}:
         precision = "address"
         confidence = "medium"
-    elif address and source == "input":
+    elif candidate.precision == "address" and source == "input":
         precision = "address"
         confidence = "high"
     else:
@@ -440,7 +559,9 @@ def geocode_listing(client: PublicOsmClient, listing: dict[str, Any]) -> dict[st
         "precision": precision,
         "source": source,
         "confidence": confidence,
-        "query": query,
+        "query": candidate.query,
+        "geocode_query_used": candidate.query,
+        "address_extraction_source": candidate.source,
         "display_name": result.get("display_name"),
     }
 
@@ -624,7 +745,12 @@ def area_level_risks(risks: dict[str, float | bool | None]) -> dict[str, Any]:
 def verification_links(listing: dict[str, Any], geo: dict[str, Any]) -> dict[str, str]:
     lat = geo.get("lat")
     lng = geo.get("lng")
-    query = safe_text(listing.get("address")) or safe_text(listing.get("location")) or safe_text(listing.get("title"))
+    query = (
+        safe_text(geo.get("geocode_query_used"))
+        or safe_text(listing.get("address"))
+        or safe_text(listing.get("location"))
+        or safe_text(listing.get("title"))
+    )
     encoded = urllib.parse.quote(query)
     links = {
         "google_maps_manual": f"https://www.google.com/maps/search/?api=1&query={encoded}",
@@ -706,7 +832,7 @@ def analyze_batch(args: argparse.Namespace) -> dict[str, Any]:
             elements = cluster_elements.get(cluster_key(point), [])
             context = analyze_elements(point, elements, geo.get("precision", "missing"))
             result.update(context)
-            origin_label = safe_text(listing.get("address")) or safe_text(listing.get("title")) or listing["id"]
+            origin_label = safe_text(geo.get("geocode_query_used")) or safe_text(listing.get("address")) or safe_text(listing.get("title")) or listing["id"]
             if isinstance(result.get("transit_access"), dict):
                 result["transit_access"]["origin"] = origin_label
             if destination_point:

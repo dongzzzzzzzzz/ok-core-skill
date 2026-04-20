@@ -16,6 +16,8 @@ Provide best-effort map context for property decisions using public OpenStreetMa
 This skill is a data source. It does not recommend properties by itself. It outputs JSON for decision skills such as `property-advisor`.
 Publish or install this skill independently when the runtime only discovers top-level skills. If embedded inside another skill repository, the parent skill should call `scripts/cli.py` directly rather than assuming automatic nested-skill discovery.
 
+When structured `address` / `location` fields are missing, still analyze the listing. The CLI performs best-effort address extraction from `title` and `description`, including OK.com titles that concatenate building names and addresses.
+
 ## Execution Boundary
 
 All operations must go through:
@@ -55,6 +57,8 @@ The CLI always returns JSON. Each listing includes:
 
 - `geo.precision`: `address`, `area`, or `missing`
 - `geo.confidence`: `high`, `medium`, or `low`
+- `geo.geocode_query_used`: the exact query sent to geocoding, when available
+- `geo.address_extraction_source`: `address`, `location`, `title`, `description`, or `input_coordinates`
 - `amenities`: OSM POI counts when available
 - `transit_access`: nearest OSM transit stop when available
 - `risk_signals`: rough road/rail/industrial proximity
@@ -69,3 +73,4 @@ The CLI always returns JSON. Each listing includes:
 - Public transport travel time is not verified.
 - If only area-level location is available, do not output listing-level precise distance claims.
 - `source=photon` and `confidence=low` should be treated as low-confidence screening signals, not address-level proof.
+- If geocoding fails, still return `verification_links.google_maps_manual` so the decision layer can give the user a manual validation path.
