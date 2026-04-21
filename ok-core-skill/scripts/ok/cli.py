@@ -273,20 +273,38 @@ def _ensure_city_home_for_auth(client, country="singapore", lang="en"):
 def cmd_check_login(args):
     """检查登录状态"""
     client = get_client()
-    _ensure_city_home_for_auth(client, getattr(args, "country", "singapore"))
+    subdomain = getattr(args, "subdomain", None)
 
-    from ok.login import check_login
-    status = check_login(client)
+    if subdomain:
+        from ok.login import check_login
+        status = check_login(client, subdomain=subdomain)
+    else:
+        _ensure_city_home_for_auth(client, getattr(args, "country", "singapore"))
+        from ok.login import check_login
+        status = check_login(client)
+
     _output(status)
 
 
 def cmd_login(args):
     """通过邮箱密码登录"""
     client = get_client()
-    _ensure_city_home_for_auth(client, getattr(args, "country", "singapore"))
+    subdomain = getattr(args, "subdomain", None)
+
+    if subdomain:
+        from ok.urls import build_base_url
+        target = build_base_url(subdomain, "en")
+        if f"{subdomain}.ok.com" not in (client.get_url() or ""):
+            client.navigate(target)
+            client.wait_dom_stable()
+    else:
+        _ensure_city_home_for_auth(client, getattr(args, "country", "singapore"))
 
     from ok.login import login_with_email
-    result = login_with_email(client, args.email, args.password, probe_subdomains=["ae", "uk", "au"])
+    result = login_with_email(
+        client, args.email, args.password,
+        probe_subdomains=[] if subdomain else ["ae", "uk", "au"],
+    )
     exit_code = 0 if result.get("logged_in") else 2
     _output(result, exit_code)
 
@@ -294,7 +312,16 @@ def cmd_login(args):
 def cmd_wait_login(args):
     """等待用户手动完成登录（OAuth 等）"""
     client = get_client()
-    _ensure_city_home_for_auth(client, getattr(args, "country", "singapore"))
+    subdomain = getattr(args, "subdomain", None)
+
+    if subdomain:
+        from ok.urls import build_base_url
+        target = build_base_url(subdomain, "en")
+        if f"{subdomain}.ok.com" not in (client.get_url() or ""):
+            client.navigate(target)
+            client.wait_dom_stable()
+    else:
+        _ensure_city_home_for_auth(client, getattr(args, "country", "singapore"))
 
     from ok.login import wait_for_login
     result = wait_for_login(client, timeout=args.timeout)
@@ -330,8 +357,17 @@ def cmd_add_favorite(args):
 def cmd_remove_favorite(args):
     """取消收藏帖子"""
     client = get_client()
-    from ok.favorites import remove_favorite
-    result = remove_favorite(client, args.url)
+    if args.index is not None:
+        from ok.favorites import remove_favorite_from_list
+        result = remove_favorite_from_list(
+            client, subdomain=args.subdomain, index=args.index,
+        )
+    elif args.url:
+        from ok.favorites import remove_favorite
+        result = remove_favorite(client, args.url)
+    else:
+        _error("需要 --url 或 --index 参数")
+        return
     _output(result)
 
 
@@ -455,17 +491,20 @@ def _build_parser() -> argparse.ArgumentParser:
     # check-login
     p = sub.add_parser("check-login", help="检查登录状态")
     p.add_argument("--country", default="singapore", help="国家（用于导航，默认 singapore）")
+    p.add_argument("--subdomain", default=None, help="目标站点子域名（如 au/sg/us），指定后在该站检测登录态")
 
     # login
     p = sub.add_parser("login", help="通过邮箱密码登录")
     p.add_argument("--email", required=True, help="邮箱地址")
     p.add_argument("--password", required=True, help="密码")
     p.add_argument("--country", default="singapore", help="国家（用于导航，默认 singapore）")
+    p.add_argument("--subdomain", default=None, help="目标站点子域名（如 au/sg/us），指定后在该站登录")
 
     # wait-login
     p = sub.add_parser("wait-login", help="等待用户手动完成登录（OAuth 等场景）")
     p.add_argument("--timeout", type=float, default=120.0, help="等待超时秒数（默认 120）")
     p.add_argument("--country", default="singapore", help="国家（用于导航，默认 singapore）")
+    p.add_argument("--subdomain", default=None, help="目标站点子域名（如 au/sg/us），指定后在该站等待登录")
 
     # ─── favorites ───────────────────────────────────────────
     p = sub.add_parser("list-favorites", help="列出收藏列表")
@@ -476,8 +515,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("add-favorite", help="收藏帖子（通过详情页 URL）")
     p.add_argument("--url", required=True, help="帖子详情页 URL")
 
-    p = sub.add_parser("remove-favorite", help="取消收藏帖子（通过详情页 URL）")
-    p.add_argument("--url", required=True, help="帖子详情页 URL")
+    p = sub.add_parser("remove-favorite", help="取消收藏")
+    p.add_argument("--url", default=None, help="帖子详情页 URL（详情页取消）")
+    p.add_argument("--index", type=int, default=None, help="收藏列表中的索引（0-based，配合 --subdomain）")
+    p.add_argument("--subdomain", default="sg", help="国家子域（配合 --index 使用）")
 
     # ─── my posts ────────────────────────────────────────────
     p = sub.add_parser("list-my-posts", help="列出我的帖子")
@@ -542,7 +583,26 @@ def main():
         parser.print_help()
         sys.exit(1)
 
+    _LOGIN_REQUIRED_CMDS = {
+        "list-favorites", "add-favorite", "remove-favorite",
+        "list-my-posts", "delete-post", "edit-post",
+    }
+
     try:
+        if args.command in _LOGIN_REQUIRED_CMDS:
+            from ok.client.factory import get_client
+            from ok.login import check_login
+
+            client = get_client()
+            subdomain = getattr(args, "subdomain", None)
+            status = check_login(client, subdomain=subdomain)
+            if not status["logged_in"]:
+                site = f" ({subdomain}.ok.com)" if subdomain else ""
+                _error(
+                    f"未登录{site}。请先在目标站点登录后重试。"
+                )
+                return
+
         handler(args)
     except OKError as e:
         _error(str(e))

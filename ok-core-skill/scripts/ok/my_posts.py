@@ -52,6 +52,11 @@ def _navigate_to_my_posts(
     current = client.get_url() or ""
     if "login" in current.lower():
         raise OKNotLoggedIn("Login required to view my posts")
+
+    if not client.has_element(sel.USER_AVATAR):
+        raise OKNotLoggedIn(
+            f"Not logged in on {subdomain}.ok.com, please login first"
+        )
     return current
 
 

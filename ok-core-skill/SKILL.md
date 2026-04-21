@@ -58,8 +58,8 @@ uv run playwright install chromium
 1. **地区切换**（"切换到新加坡 / 切换城市 / 列出国家 / 列出城市"）→ 执行 `ok-locale` 技能
 2. **推荐/详情**（"首页推荐 / 查看帖子详情"）→ 执行 `ok-explore` 技能
 3. **登录检测**（"检查登录 / 登录状态"）→ 执行 `ok-auth` 技能
-4. **收藏管理**（"查看收藏 / 收藏帖子 / 取消收藏"）→ 使用 `list-favorites` / `add-favorite` / `remove-favorite`
-5. **我的帖子**（"查看我的帖子 / 删除帖子 / 编辑帖子"）→ 使用 `list-my-posts` / `delete-post` / `edit-post`
+4. **收藏管理**（"查看收藏 / 收藏帖子 / 取消收藏"）→ **先读取 `skills/ok-account/SKILL.md`**，按其步骤执行（需登录）
+5. **我的帖子**（"查看我的帖子 / 删除帖子 / 编辑帖子"）→ **先读取 `skills/ok-account/SKILL.md`**，按其步骤执行（需登录）
 
 ---
 
@@ -102,18 +102,6 @@ uv run --project <SKILL_DIR> ok-cli get-listing --url <URL>
 uv run --project <SKILL_DIR> ok-cli check-login
 ```
 
-### Favorites — 收藏管理
+### ok-account — 收藏与我的帖子（需登录）
 
-```bash
-uv run --project <SKILL_DIR> ok-cli list-favorites --subdomain sg
-uv run --project <SKILL_DIR> ok-cli add-favorite --url <帖子详情页URL>
-uv run --project <SKILL_DIR> ok-cli remove-favorite --url <帖子详情页URL>
-```
-
-### My Posts — 我的帖子管理
-
-```bash
-uv run --project <SKILL_DIR> ok-cli list-my-posts --subdomain sg [--state active|pending|expired|draft]
-uv run --project <SKILL_DIR> ok-cli delete-post --subdomain sg --index 0
-uv run --project <SKILL_DIR> ok-cli edit-post --subdomain sg --index 0
-```
+所有收藏/帖子操作，**必须先读取 `skills/ok-account/SKILL.md`**，按其步骤检查登录、执行命令。

@@ -17,12 +17,29 @@ logger = logging.getLogger("ok-login")
 # ─── 登录状态检测 ─────────────────────────────────────────
 
 
-def check_login(bridge: BaseClient) -> dict:
+def check_login(
+    bridge: BaseClient,
+    subdomain: str | None = None,
+) -> dict:
     """检查登录状态
 
+    Args:
+        bridge: 浏览器客户端
+        subdomain: 目标站点子域名（如 "au"、"sg"）。
+                   传入时先导航到该站点首页再检测，不传则检测当前页面。
+
     Returns:
-        {"logged_in": bool, "user_name": str | None}
+        {"logged_in": bool, "user_name": str | None, "subdomain": str | None}
     """
+    if subdomain:
+        from .urls import build_base_url
+
+        current = bridge.get_url() or ""
+        if f"{subdomain}.ok.com" not in current:
+            target = build_base_url(subdomain, "en")
+            bridge.navigate(target)
+            bridge.wait_dom_stable(timeout=10000)
+
     has_avatar = bridge.has_element(sel.USER_AVATAR)
     user_name = None
 
@@ -32,12 +49,14 @@ def check_login(bridge: BaseClient) -> dict:
     result = {
         "logged_in": has_avatar,
         "user_name": user_name,
+        "subdomain": subdomain,
     }
 
+    site = f" ({subdomain}.ok.com)" if subdomain else ""
     if has_avatar:
-        logger.info("已登录: %s", user_name or "(未获取到用户名)")
+        logger.info("已登录%s: %s", site, user_name or "(未获取到用户名)")
     else:
-        logger.info("未登录")
+        logger.info("未登录%s", site)
 
     return result
 
@@ -542,9 +561,22 @@ def login_with_email(
 
     probe_results: list[dict] = []
 
-    # 命中注册分支时，做跨站点探测（ae/uk/au）
+    # 命中注册分支时的处理
     if account_type == "register":
-        subs = probe_subdomains or ["ae", "uk", "au"]
+        subs = probe_subdomains if probe_subdomains is not None else ["ae", "uk", "au"]
+
+        if not subs:
+            # 明确指定了目标站点（probe_subdomains=[]），不做跨站探测
+            return {
+                "logged_in": False,
+                "account_type": "register",
+                "message": f"该邮箱在 {original_subdomain}.ok.com 未注册",
+                "site_hint": {
+                    "current_subdomain": original_subdomain,
+                    "probes": [],
+                },
+            }
+
         probe_results = _probe_email_across_sites(bridge, email, subs)
 
         login_hit = next((r for r in probe_results if r.get("branch") == "login"), None)

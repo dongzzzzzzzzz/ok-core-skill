@@ -62,6 +62,11 @@ def _navigate_to_favourites(
     current = client.get_url() or ""
     if "login" in current.lower():
         raise OKNotLoggedIn("需要登录才能查看收藏列表")
+
+    if not client.has_element(sel.USER_AVATAR):
+        raise OKNotLoggedIn(
+            f"未登录 {subdomain}.ok.com，请先在该站点登录"
+        )
     return current
 
 
