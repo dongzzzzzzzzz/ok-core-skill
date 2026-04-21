@@ -122,73 +122,77 @@ def search_listings(
 
 
 def _extract_listings(bridge: BaseClient, max_results: int = 20) -> list[Listing]:
-    """从当前页面提取帖子列表"""
-    listings = []
+    """从当前页面提取帖子列表
 
-    # 获取列表卡片数量
-    count = bridge.get_elements_count(sel.LISTING_CARD)
-    if count == 0:
-        # 尝试备选选择器
-        count = bridge.get_elements_count("a[href*='/cate-']")
-
-    count = min(count, max_results)
-    logger.info("页面上找到 %d 个帖子卡片", count)
-
-    for i in range(count):
-        try:
-            listing = _extract_single_listing(bridge, i)
-            if listing:
-                listings.append(listing)
-        except Exception as e:
-            logger.warning("提取第 %d 个帖子失败: %s", i, e)
-            continue
-
-    return listings
-
-
-def _extract_single_listing(bridge: BaseClient, index: int) -> Listing | None:
-    """提取单个帖子信息"""
-    # 使用 JS 在主 world 中提取
+    优先使用 LISTING_CARD 选择器（带样式类的卡片组件），
+    如果找不到则降级到 JS 模式：遍历所有 <a> 链接，
+    通过 URL 路径模式 /cate-xxx/slug/ 区分帖子和分类导航。
+    """
     js = f"""
     (() => {{
-        const cards = document.querySelectorAll("{sel.LISTING_CARD}");
-        if (cards.length === 0) {{
-            const links = document.querySelectorAll("a[href*='/cate-']");
-            if ({index} >= links.length) return null;
-            const card = links[{index}];
-            return {{
-                title: card.textContent?.trim()?.substring(0, 200) || '',
-                url: card.href || '',
+        const maxResults = {max_results};
+        let cards = [...document.querySelectorAll("{sel.LISTING_CARD}")];
+
+        if (cards.length > 0) {{
+            return cards.slice(0, maxResults).map(card => {{
+                const link = card.querySelector('a') || card.closest('a');
+                const titleEl = card.querySelector("{sel.CARD_TITLE}");
+                const priceEl = card.querySelector("{sel.CARD_PRICE}");
+                const locationEl = card.querySelector("{sel.CARD_LOCATION}");
+                const imgEl = card.querySelector("{sel.CARD_IMAGE}");
+                return {{
+                    title: titleEl?.textContent?.trim() || card.textContent?.trim()?.substring(0, 200) || '',
+                    price: priceEl?.textContent?.trim() || '',
+                    location: locationEl?.textContent?.trim() || '',
+                    url: link?.href || '',
+                    image: imgEl?.src || '',
+                }};
+            }});
+        }}
+
+        // 降级：从页面链接中筛选帖子详情链接
+        // 帖子 URL: /cate-xxx/slug/  分类 URL: /cate-xxx/
+        const listingPattern = /\\/cate-[^/]+\\/[^/]+\\//;
+        const catOnlyPattern = /\\/cate-[^/]+\\/$/;
+        const seen = new Set();
+        const results = [];
+        for (const a of document.querySelectorAll('a[href*="/cate-"]')) {{
+            const href = a.href;
+            if (!href || catOnlyPattern.test(new URL(href).pathname)) continue;
+            if (!listingPattern.test(new URL(href).pathname)) continue;
+            if (seen.has(href)) continue;
+            seen.add(href);
+            const text = a.textContent?.trim()?.substring(0, 200) || '';
+            if (!text) continue;
+            const imgEl = a.querySelector('img');
+            results.push({{
+                title: text,
                 price: '',
                 location: '',
-                image: '',
-            }};
+                url: href,
+                image: imgEl?.src || '',
+            }});
+            if (results.length >= maxResults) break;
         }}
-        if ({index} >= cards.length) return null;
-        const card = cards[{index}];
-        const link = card.querySelector('a') || card.closest('a');
-        const titleEl = card.querySelector("{sel.CARD_TITLE}");
-        const priceEl = card.querySelector("{sel.CARD_PRICE}");
-        const locationEl = card.querySelector("{sel.CARD_LOCATION}");
-        const imgEl = card.querySelector("{sel.CARD_IMAGE}");
-        return {{
-            title: titleEl?.textContent?.trim() || card.textContent?.trim()?.substring(0, 200) || '',
-            price: priceEl?.textContent?.trim() || '',
-            location: locationEl?.textContent?.trim() || '',
-            url: link?.href || '',
-            image: imgEl?.src || '',
-        }};
+        return results;
     }})()
     """
 
-    result = bridge.evaluate(js)
-    if not result:
-        return None
+    results = bridge.evaluate(js)
+    if not results or not isinstance(results, list):
+        logger.info("页面上找到 0 个帖子卡片")
+        return []
 
-    return Listing(
-        title=result.get("title", ""),
-        price=result.get("price") or None,
-        location=result.get("location") or None,
-        url=result.get("url") or None,
-        image_url=result.get("image") or None,
-    )
+    logger.info("页面上找到 %d 个帖子卡片", len(results))
+    listings = []
+    for r in results:
+        if not r:
+            continue
+        listings.append(Listing(
+            title=r.get("title", ""),
+            price=r.get("price") or None,
+            location=r.get("location") or None,
+            url=r.get("url") or None,
+            image_url=r.get("image") or None,
+        ))
+    return listings

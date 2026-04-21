@@ -691,6 +691,14 @@ def _step_extract_results(
     try:
         logger.info("Step 6: 提取结果")
 
+        # 等待卡片元素渲染（Playwright 无头模式下 React 水合较慢）
+        for selector in (sel.LISTING_CARD_LIST, sel.LISTING_CARD_HOME):
+            try:
+                client.wait_for_selector(selector, timeout=10000)
+                break
+            except Exception:
+                continue
+
         fetch_count = max_results * 3 if (price_min or price_max) else max_results
         listings = _extract_listings(client, fetch_count)
         listings = _filter_by_price(listings, price_min, price_max)

@@ -15,7 +15,6 @@ LISTING_CARD_HOME = ".home-recommend-item-card"
 LISTING_CARD_LIST = "a[class*='item-card-default']"
 # 通用：二者之一
 LISTING_CARD = f"{LISTING_CARD_HOME}, {LISTING_CARD_LIST}"
-
 # 卡片内部元素
 CARD_TITLE = "[class*='itemTitle'], [class*='card-title'], h3"
 CARD_PRICE = "[class*='itemPrice'], [class*='card-price'], [class*='price']"
