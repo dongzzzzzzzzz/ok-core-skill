@@ -30,13 +30,13 @@ COUNTRIES: dict[str, dict[str, Any]] = {
     "singapore": {"subdomain": "sg", "code": "SG", "bus_id": 100005},
     "canada": {"subdomain": "ca", "code": "CA", "bus_id": 100003},
     "usa": {"subdomain": "us", "code": "US", "bus_id": 100003},
-    "uae": {"subdomain": "ae", "code": "AE", "bus_id": 100001},
-    "australia": {"subdomain": "au", "code": "AU", "bus_id": 100002},
-    "hong_kong": {"subdomain": "hk", "code": "HK", "bus_id": 100004},
+    "uae": {"subdomain": "ae", "code": "AE", "bus_id": 100002},
+    "australia": {"subdomain": "au", "code": "AU", "bus_id": 100006},
+    "hong_kong": {"subdomain": "hk", "code": "HK", "bus_id": 100007},
     "japan": {"subdomain": "jp", "code": "JP", "bus_id": 100006},
-    "uk": {"subdomain": "gb", "code": "GB", "bus_id": 100007},
+    "uk": {"subdomain": "gb", "code": "GB", "bus_id": 100004},
     "malaysia": {"subdomain": "my", "code": "MY", "bus_id": 100008},
-    "new_zealand": {"subdomain": "nz", "code": "NZ", "bus_id": 100009},
+    "new_zealand": {"subdomain": "nz", "code": "NZ", "bus_id": 100006},
 }
 
 # 子域名反向索引

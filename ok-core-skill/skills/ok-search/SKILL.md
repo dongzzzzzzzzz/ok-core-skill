@@ -70,6 +70,8 @@ uv run --project <SKILL_DIR> ok-cli list-cities --country <国家> --mode search
 
 从返回结果中选取最匹配的城市 code，传给下一步的 `--city` 参数。
 
+> 如果 `list-cities` 返回空（`total: 0`），直接用城市英文名作为 `--city` 参数即可——`full-search` 内部会通过 UI 搜索城市，不依赖此步结果。**禁止在搜索流程中使用 `set-locale` 或 `get-locale`**，`full-search` 已内置城市切换。
+
 ---
 
 ## 步骤 3 — 执行 full-search
