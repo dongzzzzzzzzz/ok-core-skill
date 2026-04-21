@@ -742,6 +742,197 @@ def area_level_risks(risks: dict[str, float | bool | None]) -> dict[str, Any]:
     }
 
 
+def assessment_confidence(geo: dict[str, Any], *, downgrade: bool = False) -> str:
+    confidence = geo.get("confidence") or "low"
+    if geo.get("precision") == "missing":
+        return "low"
+    if downgrade and confidence == "high":
+        return "medium"
+    return confidence
+
+
+def limit_assessment(limitations: list[str], *extra: str) -> list[str]:
+    values = [item for item in [*limitations, *extra] if item]
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
+def build_transport_assessment(result: dict[str, Any]) -> dict[str, Any]:
+    geo = result.get("geo") or {}
+    transit = result.get("transit_access") or {}
+    destination = result.get("destination_access") or {}
+    limitations = result.get("limitations") or []
+    if geo.get("precision") == "missing":
+        return {
+            "conclusion": "自动地图定位失败，交通结论需人工复核。",
+            "evidence": ["未拿到可用经纬度，只能提供手动地图复核链接。"],
+            "confidence": "low",
+            "limitations": limit_assessment(limitations, "geo_missing"),
+        }
+    if geo.get("precision") == "area":
+        evidence = []
+        if transit.get("nearest_stop_name"):
+            evidence.append(f"区域级可见最近公共交通名称：{transit['nearest_stop_name']}。")
+        if destination.get("destination"):
+            evidence.append(f"到 {destination['destination']} 只能做区域级直线估算。")
+        return {
+            "conclusion": "当前只有区域级位置，交通只能做片区参考，不能作为楼栋级步行距离结论。",
+            "evidence": evidence or ["缺少地址级定位，站点距离和路线时间都需人工复核。"],
+            "confidence": assessment_confidence(geo, downgrade=True),
+            "limitations": limit_assessment(limitations, "area_level_location"),
+        }
+    evidence = []
+    if transit.get("nearest_stop_name"):
+        evidence.append(
+            f"到 OSM 记录的 {transit['nearest_stop_name']} 直线估算约 {transit.get('distance_meters_range', '待确认')}m。"
+        )
+    if destination.get("destination"):
+        evidence.append(
+            f"到 {destination['destination']} 的直线估算约 {destination.get('straight_line_km', '待确认')} km。"
+        )
+    conclusion = "交通可做首轮筛选，但真实步行路线和高峰通勤仍需人工复核。"
+    if transit.get("nearest_stop_name") and destination.get("destination"):
+        conclusion = "交通条件已有地址级 OSM 证据，可用于首轮排序。"
+    return {
+        "conclusion": conclusion,
+        "evidence": evidence or ["已拿到地址级定位，但缺少可直接复述的站点或目的地距离。"],
+        "confidence": assessment_confidence(geo),
+        "limitations": limit_assessment(limitations, "straight_line_estimate_only"),
+    }
+
+
+def build_daily_convenience_assessment(result: dict[str, Any]) -> dict[str, Any]:
+    geo = result.get("geo") or {}
+    amenities = result.get("amenities") or {}
+    limitations = result.get("limitations") or []
+    if geo.get("precision") == "missing" or not amenities:
+        return {
+            "conclusion": "周边生活便利度自动分析失败，需要人工复核。",
+            "evidence": ["未拿到可靠位置或配套数据。"],
+            "confidence": "low",
+            "limitations": limit_assessment(limitations, "geo_missing"),
+        }
+    score = (
+        int(amenities.get("supermarket_count", 0))
+        + int(amenities.get("pharmacy_count", 0))
+        + int(amenities.get("restaurant_count", 0))
+    )
+    if score >= 10:
+        conclusion = "生活便利度较好。"
+    elif score >= 4:
+        conclusion = "生活便利度中等，能满足基础日常需求。"
+    else:
+        conclusion = "公开 OSM 记录到的生活配套有限，需重点人工复核。"
+    if geo.get("precision") == "area":
+        conclusion = "区域级配套成熟度可做参考，但不能直接代表房源楼下的便利度。"
+    evidence = [
+        f"800m 范围内记录到超市 {amenities.get('supermarket_count', 0)} 家。",
+        f"800m 范围内记录到药店/诊所 {amenities.get('pharmacy_count', 0)} 处。",
+        f"800m 范围内记录到餐饮 {amenities.get('restaurant_count', 0)} 处。",
+    ]
+    return {
+        "conclusion": conclusion,
+        "evidence": evidence,
+        "confidence": assessment_confidence(geo, downgrade=geo.get("precision") == "area"),
+        "limitations": limit_assessment(limitations),
+    }
+
+
+def build_environment_risk_assessment(result: dict[str, Any]) -> dict[str, Any]:
+    geo = result.get("geo") or {}
+    risks = result.get("risk_signals") or {}
+    limitations = result.get("limitations") or []
+    if geo.get("precision") == "missing" or not risks:
+        return {
+            "conclusion": "环境风险自动分析失败，需要人工复核噪音和工业用地。",
+            "evidence": ["未拿到可靠位置。"],
+            "confidence": "low",
+            "limitations": limit_assessment(limitations, "geo_missing"),
+        }
+    evidence: list[str] = []
+    risk_level = "低"
+    primary_road = risks.get("near_primary_road_meters")
+    railway = risks.get("near_railway_meters")
+    industrial = risks.get("industrial_landuse_nearby")
+    if primary_road is not None:
+        evidence.append(f"最近主路信号约 {primary_road}m。")
+        if primary_road <= 120:
+            risk_level = "高"
+    if railway is not None:
+        evidence.append(f"最近铁路/电车轨道信号约 {railway}m。")
+        if railway <= 180:
+            risk_level = "高"
+        elif risk_level != "高":
+            risk_level = "中"
+    if industrial:
+        evidence.append("1km 范围内发现工业用地信号。")
+        risk_level = "高"
+    if geo.get("precision") == "area":
+        conclusion = "区域级环境风险可做参考，噪音源距离仍需人工复核。"
+    elif risk_level == "高":
+        conclusion = "环境风险偏高，需重点核对主路/轨道/工业干扰。"
+    elif risk_level == "中":
+        conclusion = "环境存在一定干扰可能，建议打开地图和原帖做二次确认。"
+    else:
+        conclusion = "当前未见明显高风险环境信号，但仍不等于实地安静。"
+    return {
+        "conclusion": conclusion,
+        "evidence": evidence or ["未记录到明显主路、轨道或工业用地信号。"],
+        "confidence": assessment_confidence(geo, downgrade=geo.get("precision") == "area"),
+        "limitations": limit_assessment(limitations),
+    }
+
+
+def build_area_maturity_assessment(result: dict[str, Any]) -> dict[str, Any]:
+    geo = result.get("geo") or {}
+    amenities = result.get("amenities") or {}
+    limitations = result.get("limitations") or []
+    if geo.get("precision") == "missing":
+        return {
+            "conclusion": "区域成熟度无法自动判断，需要人工复核。",
+            "evidence": ["缺少可用定位。"],
+            "confidence": "low",
+            "limitations": limit_assessment(limitations, "geo_missing"),
+        }
+    total_poi = (
+        int(amenities.get("supermarket_count", 0))
+        + int(amenities.get("pharmacy_count", 0))
+        + int(amenities.get("restaurant_count", 0))
+        + int(amenities.get("gym_count", 0))
+        + int(amenities.get("park_count", 0))
+    )
+    if total_poi >= 12:
+        conclusion = "区域成熟度较高。"
+    elif total_poi >= 5:
+        conclusion = "区域成熟度中等。"
+    else:
+        conclusion = "区域成熟度偏弱或公开 OSM 记录不足。"
+    if geo.get("precision") == "area":
+        conclusion = f"{conclusion.rstrip('。')}；这个结论只能代表片区，不代表具体楼栋。"
+    evidence = [f"当前片区公开 OSM 记录到的常用配套总量约 {total_poi} 项。"]
+    return {
+        "conclusion": conclusion,
+        "evidence": evidence,
+        "confidence": assessment_confidence(geo, downgrade=geo.get("precision") == "area"),
+        "limitations": limit_assessment(limitations),
+    }
+
+
+def build_assessments(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "transport_access": build_transport_assessment(result),
+        "daily_convenience": build_daily_convenience_assessment(result),
+        "environment_risk": build_environment_risk_assessment(result),
+        "area_maturity": build_area_maturity_assessment(result),
+    }
+
+
 def verification_links(listing: dict[str, Any], geo: dict[str, Any]) -> dict[str, str]:
     lat = geo.get("lat")
     lng = geo.get("lng")
@@ -868,6 +1059,8 @@ def analyze_batch(args: argparse.Namespace) -> dict[str, Any]:
                 result["limitations"].append("route_time_is_estimated")
             if geo.get("precision") == "area":
                 result["limitations"].append("area_level_location")
+        result["status"] = "degraded" if geo.get("precision") == "missing" else ("partial" if geo.get("precision") == "area" else "ok")
+        result["assessments"] = build_assessments(result)
         results.append(result)
 
     # Nominatim failures can be fully recovered by Photon fallback. Only mark

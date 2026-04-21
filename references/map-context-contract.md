@@ -1,212 +1,135 @@
-# 地图上下文契约
+# Map Context Contract
 
-本文档定义 `property-advisor` 如何消费可选地图上下文数据。地图上下文通常来自 `public-osm-map-context-skill` 这类外部 skill。
+本文档定义 `property-advisor` 如何显式调用并消费 `public-osm-map-context-skill`。
 
-本 skill 不要求 `ok-core-skill` 或其他房源数据源改造字段。地图 skill 应基于当前已有的 `title`、`location`、`url`、`description`、`address`、`lat`、`lng` 做 best-effort 分析。
+## 1. 调用方式
 
-地图 skill 是增强层，不是最终推荐层。输出每条地图结果时必须保留轻量 `listing_ref`，尤其是 `listing_ref.url`，作为编排层按 `id/listing_id` 合并失败时的兜底。最终回答中房源原帖链接和地图复核链接必须分开展示；Google Maps / OSM 链接不能替代房源原帖链接。
+父 skill 不应依赖 nested skill 自动发现。
 
-如果 `address` 和 `location` 缺失或质量低，地图 skill 应尝试从 `title` 或 `description` 中提取地址。OK.com 常见标题会把楼名、城市、地址和价格粘在一起，例如 `The Archive, Melbourne205 Normanby Rd, Southbank VIC 3006, Australia`，地图 skill 应先提取 `205 Normanby Rd, Southbank VIC 3006, Australia` 再 geocode。
-
-发布时建议把 `public-osm-map-context-skill` 作为独立 skill 安装或注册；如果运行环境不能发现 nested skill，Agent 仍可按本契约调用当前仓库的参考 CLI。`property-advisor` 不应假设地图 skill 一定存在。
-
-当前仓库提供一个参考实现：
+推荐调用：
 
 ```bash
-python3 public-osm-map-context-skill/scripts/cli.py analyze-batch --input listings.json --destination "Melbourne CBD VIC" --city melbourne --incremental
+python3 public-osm-map-context-skill/scripts/cli.py analyze-batch \
+  --input listings.json \
+  --destination "Melbourne CBD VIC" \
+  --city melbourne
 ```
 
-参考实现必须快速降级，不能为了地图上下文阻塞整个房产决策。默认 live 行为：
+## 2. 输入要求
 
-- 单个 HTTP 请求最多等待 8 秒
-- 整次 live 分析最多等待 45 秒
-- Overpass 每个 endpoint 默认只尝试 1 次
-- 批量 geocoding 默认 `photon-first`，Nominatim 只做 fallback，避免 50-100 套房源被 Nominatim 限速拖死
-- 超出预算时返回 `status=partial` 或 `status=degraded`，并在 `usage.errors` 中写明 `runtime_budget_exhausted`
-
----
-
-## 一、能力边界
-
-公共 OSM 地图上下文适合做筛选级增强：
-
-- 地址或区域 geocoding
-- 周边 POI 数量统计
-- 最近公交 / tram / train 站点距离
-- 主路、铁路、工业区等环境风险粗判
-- OpenStreetMap / Google Maps 手动验证链接
-
-不适合承诺：
-
-- Google Maps 已验证
-- 实时公共交通通勤时间
-- Street View 环境判断
-- 商户评分、评论、实时营业状态
-- POI 数据完整覆盖
-
----
-
-## 二、输入约定
-
-地图 skill 可接收房源列表：
+地图 skill 接收房源列表，最少包含：
 
 ```json
 {
   "listings": [
     {
-      "id": "listing_001",
+      "id": "listing_archive",
+      "listing_id": null,
       "title": "The Archive, Southbank",
       "price": "A$786/wk",
       "location": "Southbank VIC",
-      "url": "https://...",
-      "description": null,
-      "address": null,
-      "lat": null,
-      "lng": null
-    }
-  ],
-  "destination": "Melbourne CBD VIC"
-}
-```
-
-如果只有 `location`，地图 skill 应返回区域级结果，不应伪装成地址级精度。如果 `location` 只是城市/区域但 `title` 或 `description` 能提取完整街道地址，应优先使用提取出的街道地址。
-
----
-
-## 三、输出约定
-
-```json
-{
-  "status": "ok",
-  "provider": "public_osm",
-  "listings": [
-    {
-      "id": "listing_001",
-      "listing_ref": {
-        "id": "listing_001",
-        "listing_id": null,
-        "title": "The Archive, Southbank",
-        "price": "A$786/wk",
-        "location": "Southbank VIC",
-        "url": "https://...",
-        "image_url": null
-      },
-      "geo": {
-        "lat": -37.823,
-        "lng": 144.958,
-        "precision": "address",
-        "source": "nominatim_or_photon",
-        "confidence": "medium",
-        "geocode_query_used": "205 Normanby Rd, Southbank VIC 3006, Australia",
-        "address_extraction_source": "title"
-      },
-      "destination_access": {
-        "origin": "205 Normanby Rd, Southbank VIC 3006",
-        "destination": "Melbourne CBD VIC",
-        "distance_type": "straight_line_estimate",
-        "straight_line_km": 2.1,
-        "walk_minutes_range": "25-40",
-        "verified_route": false
-      },
-      "transit_access": {
-        "origin": "205 Normanby Rd, Southbank VIC 3006",
-        "nearest_stop_name": "Southbank Tram Stop",
-        "distance_type": "straight_line_estimate",
-        "distance_meters_range": "350-500",
-        "source": "overpass_osm"
-      },
-      "amenities": {
-        "radius_meters": 800,
-        "supermarket_count": 3,
-        "pharmacy_count": 2,
-        "restaurant_count": 18,
-        "source": "overpass_osm"
-      },
-      "risk_signals": {
-        "near_primary_road_meters": 90,
-        "near_railway_meters": null,
-        "industrial_landuse_nearby": false
-      },
-      "verification_links": {
-        "openstreetmap": "https://www.openstreetmap.org/...",
-        "google_maps_manual": "https://www.google.com/maps/search/?api=1&query=..."
-      },
-      "limitations": [
-        "not_google_maps_verified",
-        "public_transport_time_not_verified",
-        "osm_coverage_may_be_incomplete"
-      ]
+      "url": "https://example.test/archive",
+      "image_url": "https://example.test/archive.jpg",
+      "description": "1 bedroom apartment ..."
     }
   ]
 }
 ```
 
-`listing_ref` 是原始房源的轻量回显，只用于保留决策层必需的展示和 join 信息。不得回显完整 `description`。
+如果 `address` 缺失，地图 skill 应继续基于 `title`、`location`、`description` 做 best-effort 地址提取。
 
-如果输入房源缺少 `url`，地图结果应在 `limitations` 中加入 `original_listing_url_missing`。`property-advisor` 看到该 limitation 时，不要点名展示这套房，只能汇总说明有缺原帖链接的候选需要补数据。
+## 3. 输出要求
 
-`status` 可以是：
+地图 skill 必须继续保留原始上下文字段：
 
-- `ok`：地图上下文可用
-- `partial`：部分房源或部分区域失败
-- `degraded`：公共 OSM 服务不可用或关键字段不足，只能给验证链接
+- `listing_ref`
+- `geo`
+- `amenities`
+- `transit_access`
+- `risk_signals`
+- `verification_links`
+- `limitations`
 
-`partial` 是正常可消费状态。`property-advisor` 应继续做推荐，但只能把已完成的地图字段作为辅助信号；不能因为部分 Overpass/geocode 超时而中断整轮回答。
+同时新增固定 `assessments` 结构：
 
-`geo.precision` 可以是：
+```json
+{
+  "assessments": {
+    "transport_access": {
+      "conclusion": "交通条件已有地址级 OSM 证据，可用于首轮排序。",
+      "evidence": ["到 OSM 记录的 Normanby Road Tram Stop 直线估算约 50-100m。"],
+      "confidence": "medium",
+      "limitations": ["straight_line_estimate_only"]
+    },
+    "daily_convenience": {
+      "conclusion": "生活便利度中等，能满足基础日常需求。",
+      "evidence": ["800m 范围内记录到超市 1 家。"],
+      "confidence": "medium",
+      "limitations": []
+    },
+    "environment_risk": {
+      "conclusion": "环境风险偏高，需重点核对主路/轨道/工业干扰。",
+      "evidence": ["最近主路信号约 94m。"],
+      "confidence": "medium",
+      "limitations": []
+    },
+    "area_maturity": {
+      "conclusion": "区域成熟度中等。",
+      "evidence": ["当前片区公开 OSM 记录到的常用配套总量约 5 项。"],
+      "confidence": "medium",
+      "limitations": []
+    }
+  }
+}
+```
 
-- `address`：地址级或接近地址级位置
-- `area`：区域中心点或片区级位置
-- `missing`：无法定位
+## 4. 四个固定维度
 
-`geo.confidence` 可以是：
+### `transport_access`
 
-- `high`
-- `medium`
-- `low`
+必须覆盖：
 
----
+- 最近站点
+- 到目标地的估算
+- 精度边界
 
-## 四、消费规则
+### `daily_convenience`
 
-`property-advisor` 消费地图上下文时必须按精度降级：
+必须把超市、药店、餐饮等统计转成便利度结论，不能只返回计数。
 
-| 地图结果 | 可用表达 | 禁止表达 |
-| --- | --- | --- |
-| `precision=address`, `confidence=high/medium` | “基于 OSM 估算，约 350-500m 到最近 tram stop” | “Google Maps 确认步行 6 分钟” |
-| `precision=area` | “Southbank 区域整体生活配套较成熟” | “这套房 800m 内有 3 个超市” |
-| `precision=missing` | “地图信息不足，需手动验证” | 任何精确距离或设施数量 |
-| `status=degraded` | “地图深度分析暂不可用，建议打开链接复核” | 假装已完成地图分析 |
+### `environment_risk`
 
-如果 `geo.precision=missing`，仍必须输出 `verification_links.google_maps_manual`。最终回答应说明该链接用于手动验证通勤路线、最近公共交通、超市/药店和噪音源。
+必须把主路、铁路、工业用地信号转成风险结论，不能只返回 raw distance。
 
-最终回答必须区分两类链接：房源详情用原始 `url` 或 `listing_ref.url`；地图核验用 `verification_links.google_maps_manual` 或 `verification_links.openstreetmap`。不能把地图核验链接写成房源详情链接。任何被点名展示的具体房源都必须有房源详情链接；如果只有地图核验链接，不要点名展示该房源。
+### `area_maturity`
 
-所有距离表达必须有明确对象：
+用于描述片区成熟度。`precision=area` 时只能做片区判断，不能写成楼栋级结论。
 
-- 到目的地：必须写成“从 `[房源地址/标题]` 到 `[用户目的地]` 的直线估算距离约 X km”，不能只写“直线约 X km”
-- 到公共交通：必须写出 `nearest_stop_name`，例如“从 `[房源地址]` 到 OSM 记录的 `[Stop 19: Shrine of Remembrance]` 直线估算约 100-150m”
-- 如果 `distance_type=straight_line_estimate`，必须说明不是 Google Maps 步行路线
-- 如果 `confidence=low` 或 `source=photon`，不得使用具体米数作为强推荐理由，只能写“地图定位置信度低，需打开验证链接复核”
+## 5. 低置信和降级规则
 
-如果 OSM 没记录到某类设施，只能写“OSM 未记录到”，不能写“周边没有”。
+### `precision=address`
 
-如果 `source=photon` 或 `confidence=low`，应按区域级或低置信结果消费，不要把距离和周边统计作为强推荐理由。
+- 可作为首轮排序依据
+- 仍须保留 `straight_line_estimate` 的局限说明
 
-低置信地图结果不能让最终回答失去可用性。`property-advisor` 应继续根据价格、区域、卧室数、异常价、房源信息完整度和下一步核验动作给出初筛建议。
+### `precision=area`
 
----
+- assessments 只能写片区级结论
+- 不能输出楼栋级步行距离
+- 编排层通常应把候选状态降级为 `待人工复核`
 
-## 五、编排规则
+### `precision=missing`
 
-推荐 Agent 编排：
+- assessments 必须显式返回“自动定位失败，需要人工复核”
+- 仍需提供 `verification_links.google_maps_manual`
 
-1. 先获取房源列表和详情
-2. 如果用户关心通勤、周边或区域风险，且环境中存在地图 skill，则调用地图 skill
-3. 将地图 skill 的 JSON 与房源数据一起交给 `property-advisor`
-4. 如果地图 skill 不存在或返回 degraded，仍继续完成初筛推荐，并明确地图信息未确认
-5. 不要因为 `address/location` 为空就跳过地图；地图 skill 可以从 `title` 或 `description` 做 best-effort 地址提取
+## 6. 链接规则
 
-不要要求房源数据源增加经纬度字段；如果上游没有坐标，地图 skill 自行降级处理。
+- `listing_ref.url` 是原帖链接兜底
+- `verification_links.google_maps_manual` 只能作为地图复核链接
+- 任何被点名展示的候选都必须有原帖链接
 
-最终回答应以原始房源/详情数据为主，地图数据只作为辅助上下文。展示某套房时必须优先使用原帖 `url`；`verification_links.google_maps_manual` 只能标为“地图复核链接”。
+如果地图结果带有 `original_listing_url_missing`：
+
+- 编排层不得点名展示该候选
+- 只能把它放进 `hidden_candidates`

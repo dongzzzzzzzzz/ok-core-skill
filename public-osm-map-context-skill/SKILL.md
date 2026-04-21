@@ -65,6 +65,18 @@ The CLI always returns JSON. Each listing includes:
 - `risk_signals`: rough road/rail/industrial proximity
 - `verification_links`: manual OpenStreetMap and Google Maps links
 - `limitations`: explicit limits such as `not_google_maps_verified`
+- `assessments`: four decision-ready dimensions for parent orchestrators:
+  - `transport_access`
+  - `daily_convenience`
+  - `environment_risk`
+  - `area_maturity`
+
+Each assessment contains:
+
+- `conclusion`
+- `evidence`
+- `confidence`
+- `limitations`
 
 ## Mandatory Caveats
 

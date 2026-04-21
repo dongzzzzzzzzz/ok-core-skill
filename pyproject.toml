@@ -1,6 +1,6 @@
 [project]
 name = "property-advisor"
-version = "2.2.0"
-description = "房产决策 Skill — 用于租房、买房、卖房、估价、区域判断、房源推荐与可选地图上下文消费。"
+version = "3.0.0"
+description = "OpenClaw-first property search orchestration skill with ok-core-skill runtime preflight and bundled OSM map enrichment."
 requires-python = ">=3.11"
 dependencies = []

@@ -1,4 +1,4 @@
 interface:
   display_name: "Property Advisor"
-  short_description: "Rent, buy, compare, price, or evaluate homes, listings, and neighborhoods"
-  default_prompt: "Use this skill for any housing or property request: renting, buying, finding apartments or houses, 1 bedroom/studio/condo searches, listing recommendations, budget filtering, commute and amenity checks, selling, pricing, neighborhood evaluation, or deciding whether an area/building fits the user's living or investment needs. The skill is a decision layer: consume external listing/map data, then give practical recommendations, risks, and next actions."
+  short_description: "OpenClaw-first property search orchestration with bundled map enrichment"
+  default_prompt: "Use this skill for any housing or property request involving search, filtering, comparison, commute, amenities, area fit, or neighborhood risk. This is an execution-layer skill: preflight ok-core-skill, fetch listings, hydrate details, explicitly call the bundled public-osm-map-context-skill, and return the final fixed candidate table. Do not stop at analysis or explain what should be called; actively orchestrate the workflow."

@@ -84,6 +84,13 @@ class CliEndToEndTest(unittest.TestCase):
         self.assertIn("origin", archive["destination_access"])
         self.assertEqual(archive["destination_access"]["distance_type"], "straight_line_estimate")
         self.assertIn("not_google_maps_verified", archive["limitations"])
+        self.assertIn("assessments", archive)
+        self.assertIn("transport_access", archive["assessments"])
+        self.assertIn("daily_convenience", archive["assessments"])
+        self.assertIn("environment_risk", archive["assessments"])
+        self.assertIn("area_maturity", archive["assessments"])
+        self.assertTrue(archive["assessments"]["transport_access"]["conclusion"])
+        self.assertTrue(archive["assessments"]["daily_convenience"]["evidence"])
 
         area = by_id["listing_area_only"]
         self.assertEqual(area["geo"]["precision"], "area")
@@ -94,6 +101,7 @@ class CliEndToEndTest(unittest.TestCase):
         self.assertNotIn("near_primary_road_meters", area["risk_signals"])
         self.assertNotIn("distance_meters_range", area["transit_access"])
         self.assertEqual(area["transit_access"]["distance_type"], "not_available_for_area_level_location")
+        self.assertIn("片区", area["assessments"]["transport_access"]["conclusion"])
 
     def test_doctor(self) -> None:
         proc = subprocess.run(
@@ -156,6 +164,7 @@ class CliEndToEndTest(unittest.TestCase):
         item = payload["listings"][0]
         self.assertIsNone(item["listing_ref"]["url"])
         self.assertIn("original_listing_url_missing", item["limitations"])
+        self.assertIn("assessments", item)
 
     def test_extracts_ok_com_concatenated_australian_address(self) -> None:
         title = "The Archive, Melbourne205 Normanby Rd, Southbank VIC 3006, Australia"
