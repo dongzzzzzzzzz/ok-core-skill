@@ -50,6 +50,10 @@ def resolve_ok_skill_root(custom_root: str | Path | None = None, env: dict[str, 
 
 
 class OKCoreSkillClient:
+    source_name = "ok-core-skill"
+    runtime_mode = "ok"
+    detail_supported = True
+
     def __init__(
         self,
         *,
@@ -64,6 +68,7 @@ class OKCoreSkillClient:
         self.which = which or shutil.which
         self._selected_runner: str | None = None
         self._selected_prefix: list[str] | None = None
+        self._warnings: list[str] = []
 
     def doctor(self, *, run_browser_smoke: bool = True) -> PreflightReport:
         checks: list[PreflightCheck] = []
@@ -134,6 +139,9 @@ class OKCoreSkillClient:
             selected_runner=selected_runner,
             checks=checks,
             warnings=warnings,
+            source_name=self.source_name,
+            runtime_mode=self.runtime_mode,
+            detail_supported=self.detail_supported,
         )
 
     def search_property(
@@ -144,6 +152,8 @@ class OKCoreSkillClient:
         city: str,
         lang: str,
         max_results: int,
+        query_text: str = "",
+        search_location: str = "",
     ) -> list[dict[str, Any]]:
         payload = self._run_json(
             [
@@ -169,6 +179,8 @@ class OKCoreSkillClient:
         city: str,
         lang: str,
         max_results: int,
+        query_text: str = "",
+        search_location: str = "",
     ) -> list[dict[str, Any]]:
         payload = self._run_json(
             [
@@ -189,6 +201,11 @@ class OKCoreSkillClient:
 
     def get_listing_detail(self, *, url: str) -> dict[str, Any]:
         return self._run_json(["get-listing", "--url", url])
+
+    def drain_warnings(self) -> list[str]:
+        warnings = list(self._warnings)
+        self._warnings.clear()
+        return warnings
 
     def _select_runtime(self) -> tuple[list[str], str, PreflightCheck, list[str]]:
         warnings: list[str] = []

@@ -20,8 +20,9 @@ metadata:
 当用户提出搜索、筛选、比较房源，或要求看通勤、周边、安全、区域时，默认执行下面的链路：
 
 1. 识别用户需求和最小约束
-2. 对 `ok-core-skill` 做 preflight
-3. 用 `ok-core-skill` 获取房源列表
+2. 先判断请求应走 `ok-core-skill` 还是 `gt-core-skill`
+3. 对所选上游 skill 做 preflight
+4. 用上游 skill 获取房源列表
 4. 对优先候选补齐详情页
 5. 保存原始房源快照
 6. 显式调用仓库内 `public-osm-map-context-skill/scripts/cli.py`
@@ -31,6 +32,13 @@ metadata:
 不要把这条链路交给模型自由发挥，也不要只停在“我建议你去调用某个 skill”。
 
 ## 运行时硬规则
+
+### 市场路由
+
+- 默认 `market=auto`
+- 英国相关请求默认走 `gt-core-skill`
+- 非英国请求继续走 `ok-core-skill`
+- 如果同时出现英国和非英国高置信地理信号，停止自动路由，明确要求用户确认市场
 
 ### ok-core-skill
 
@@ -51,6 +59,29 @@ metadata:
 - 用裸 `python3 scripts/cli.py` 调 `ok-core-skill`
 - 假设历史路径一定存在
 - 不做 preflight 就直接开跑
+
+### gt-core-skill
+
+路径发现顺序固定为：
+
+1. `GT_CORE_SKILL_ROOT`
+2. `PROPERTY_GT_SKILL_ROOT`
+3. 当前工作区 `.agents/skills` 与 `skills`
+4. `$CODEX_HOME/skills` / `~/.codex/skills`
+5. 本地桌面 `gt-core-skill` 开发路径
+
+运行规则固定为：
+
+1. 优先使用支持 `search + detail` 的 Bridge 版 Gumtree skill
+2. Bridge 版优先 `uv run python scripts/cli.py`
+3. Bridge 版失败时回退 `.venv/bin/python scripts/cli.py`
+4. 只有找不到 Bridge 版时，才回退 API `search-listings` 模式
+
+补充规则：
+
+- `gt-core-skill` 的 `logged_in=false` 只记 warning，不算 preflight 失败
+- GT API 版不支持详情补全时，必须把缺口写进 `缺失/未知`
+- 英国请求默认仍然要补详情，不允许只停在搜索列表
 
 ### 地图 skill
 
@@ -141,6 +172,7 @@ metadata:
 ```bash
 python3 scripts/cli.py doctor --skip-browser-smoke
 python3 scripts/cli.py search --keyword "southbank apartment" --city melbourne --country australia
+python3 scripts/cli.py search --keyword "studio flat" --query-text "找 London 的 studio flat" --market auto
 ```
 
 OpenClaw 是正式入口，但本地 CLI 是排查执行层问题的唯一推荐调试入口。

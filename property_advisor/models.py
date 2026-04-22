@@ -19,6 +19,12 @@ class SearchRequest:
     force_map: bool = True
     query_text: str = ""
     user_priorities: list[str] = field(default_factory=list)
+    market_hint: str = "auto"
+    resolved_market: str = ""
+    routing_reason: str = ""
+    search_location_hint: str = ""
+    country_is_default: bool = True
+    city_is_default: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -42,6 +48,10 @@ class PreflightReport:
     selected_runner: str | None
     checks: list[PreflightCheck] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    source_name: str | None = None
+    runtime_mode: str | None = None
+    detail_supported: bool | None = None
+    logged_in: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -50,6 +60,10 @@ class PreflightReport:
             "selected_runner": self.selected_runner,
             "checks": [check.to_dict() for check in self.checks],
             "warnings": list(self.warnings),
+            "source_name": self.source_name,
+            "runtime_mode": self.runtime_mode,
+            "detail_supported": self.detail_supported,
+            "logged_in": self.logged_in,
         }
 
 
@@ -137,6 +151,9 @@ class CandidateDecisionRow:
 class PipelineReport:
     request: SearchRequest
     preflight: PreflightReport
+    selected_source: str | None = None
+    selected_runtime_mode: str | None = None
+    routing: dict[str, Any] = field(default_factory=dict)
     raw_listing_snapshots: list[RawListingSnapshot] = field(default_factory=list)
     map_report: dict[str, Any] | None = None
     candidate_rows: list[CandidateDecisionRow] = field(default_factory=list)
@@ -150,6 +167,9 @@ class PipelineReport:
         return {
             "request": self.request.to_dict(),
             "preflight": self.preflight.to_dict(),
+            "selected_source": self.selected_source,
+            "selected_runtime_mode": self.selected_runtime_mode,
+            "routing": dict(self.routing),
             "raw_listing_snapshots": [snapshot.to_dict() for snapshot in self.raw_listing_snapshots],
             "map_report": self.map_report,
             "candidate_rows": [row.to_dict() for row in self.candidate_rows],

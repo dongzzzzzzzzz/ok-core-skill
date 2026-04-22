@@ -1,4 +1,4 @@
 interface:
   display_name: "Property Advisor"
-  short_description: "OpenClaw-first property search orchestration with bundled map enrichment"
-  default_prompt: "Use this skill for any housing or property request involving search, filtering, comparison, commute, amenities, area fit, or neighborhood risk. This is an execution-layer skill: preflight ok-core-skill, fetch listings, hydrate details, explicitly call the bundled public-osm-map-context-skill, and return the final fixed candidate table. Do not stop at analysis or explain what should be called; actively orchestrate the workflow."
+  short_description: "OpenClaw-first property orchestration with OK/GT routing and bundled map enrichment"
+  default_prompt: "Use this skill for any housing or property request involving search, filtering, comparison, commute, amenities, area fit, or neighborhood risk. This is an execution-layer skill: first route the request to ok-core-skill or gt-core-skill, preflight the selected upstream skill, fetch listings, hydrate details, explicitly call the bundled public-osm-map-context-skill, and return the final fixed candidate table. Do not stop at analysis or explain what should be called; actively orchestrate the workflow."

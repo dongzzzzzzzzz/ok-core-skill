@@ -21,11 +21,12 @@ from .models import (
     RawListingSnapshot,
     SearchRequest,
 )
+from .source_client import PropertyListingClient
 
 
 class PropertyAdvisorOrchestrator:
-    def __init__(self, ok_client: Any, map_client: Any | None = None) -> None:
-        self.ok_client = ok_client
+    def __init__(self, listing_client: PropertyListingClient | Any, map_client: Any | None = None) -> None:
+        self.listing_client = listing_client
         self.map_client = map_client
 
     def search(self, request: SearchRequest) -> PipelineReport:
@@ -34,14 +35,20 @@ class PropertyAdvisorOrchestrator:
             return PipelineReport(
                 request=request,
                 preflight=preflight,
+                selected_source=getattr(self.listing_client, "source_name", None),
+                selected_runtime_mode=getattr(self.listing_client, "runtime_mode", None),
+                routing=_routing_payload(request),
                 summary={"visible_candidates": 0, "hidden_candidates": 0},
-                errors=["ok-core-skill preflight failed; fix runtime before retrying search."],
+                warnings=list(preflight.warnings),
+                errors=[f"{preflight.source_name or 'listing source'} preflight failed; fix runtime before retrying search."],
             )
 
         base_listings = self._fetch_search_results(request)
         hydrated = self._hydrate_details(base_listings, request.detail_limit)
         snapshots = [self._build_snapshot(listing, index) for index, listing in enumerate(hydrated)]
-        warnings: list[str] = []
+        warnings: list[str] = list(preflight.warnings)
+        if hasattr(self.listing_client, "drain_warnings"):
+            warnings.extend(self.listing_client.drain_warnings())
         map_report: dict[str, Any] | None = None
 
         if request.force_map and self.map_client:
@@ -62,6 +69,9 @@ class PropertyAdvisorOrchestrator:
         return PipelineReport(
             request=request,
             preflight=preflight,
+            selected_source=getattr(self.listing_client, "source_name", None),
+            selected_runtime_mode=getattr(self.listing_client, "runtime_mode", None),
+            routing=_routing_payload(request),
             raw_listing_snapshots=snapshots,
             map_report=map_report,
             candidate_rows=rows,
@@ -73,29 +83,37 @@ class PropertyAdvisorOrchestrator:
         )
 
     def _doctor(self) -> PreflightReport:
-        if hasattr(self.ok_client, "doctor"):
-            return self.ok_client.doctor(run_browser_smoke=True)
+        if hasattr(self.listing_client, "doctor"):
+            run_browser_smoke = getattr(self.listing_client, "source_name", "") != "gt-core-skill"
+            return self.listing_client.doctor(run_browser_smoke=run_browser_smoke)
         return PreflightReport(
             ok=True,
             skill_root=None,
             selected_runner="injected",
             checks=[PreflightCheck(name="injected_client", ok=True, message="Using injected ok client.")],
+            source_name=getattr(self.listing_client, "source_name", "injected"),
+            runtime_mode=getattr(self.listing_client, "runtime_mode", "injected"),
+            detail_supported=getattr(self.listing_client, "detail_supported", None),
         )
 
     def _fetch_search_results(self, request: SearchRequest) -> list[dict[str, Any]]:
         if request.keyword:
-            return self.ok_client.search_property(
+            return self.listing_client.search_property(
                 keyword=request.keyword,
                 country=request.country,
                 city=request.city,
                 lang=request.lang,
                 max_results=request.max_results,
+                query_text=request.query_text,
+                search_location=request.search_location_hint,
             )
-        return self.ok_client.browse_property(
+        return self.listing_client.browse_property(
             country=request.country,
             city=request.city,
             lang=request.lang,
             max_results=request.max_results,
+            query_text=request.query_text,
+            search_location=request.search_location_hint,
         )
 
     def _hydrate_details(self, listings: list[dict[str, Any]], detail_limit: int) -> list[dict[str, Any]]:
@@ -105,11 +123,12 @@ class PropertyAdvisorOrchestrator:
             url = safe_text(listing.get("url"))
             if index < detail_limit and url:
                 try:
-                    detail = self.ok_client.get_listing_detail(url=url)
+                    detail = self.listing_client.get_listing_detail(url=url)
                     detail = dict(detail)
+                    detail = {**listing, **detail}
                     if not detail.get("url"):
                         detail["url"] = url
-                    detail["detail_fetched"] = True
+                    detail["detail_fetched"] = not bool(detail.get("detail_degraded")) and detail.get("detail_fetched", True) is not False
                     detailed = detail
                 except Exception:
                     detailed["detail_fetched"] = False
@@ -133,6 +152,8 @@ class PropertyAdvisorOrchestrator:
         image_url = safe_text(listing.get("image_url")) or None
         if image_url and image_url not in images:
             images = [image_url, *images]
+        attributes = listing.get("attributes") if isinstance(listing.get("attributes"), dict) else {}
+        bedrooms_text = safe_text(listing.get("bedrooms_text") or attributes.get("Number Of Bedrooms") or attributes.get("Bedrooms"))
         price_info = parse_price_text(listing.get("price"))
         return RawListingSnapshot(
             id=snapshot_id,
@@ -156,7 +177,7 @@ class PropertyAdvisorOrchestrator:
             price_value=price_info["value"],
             price_currency=price_info["currency"],
             price_period=price_info["period"],
-            inferred_bedrooms=extract_bedrooms(title, listing.get("description")),
+            inferred_bedrooms=extract_bedrooms(title, listing.get("description"), bedrooms_text),
             image_count=len(images),
             has_placeholder_image=has_placeholder_image(images),
             raw=dict(listing),
@@ -228,8 +249,11 @@ class PropertyAdvisorOrchestrator:
             satisfied.append(f"有 {snapshot.image_count} 张房源图片")
         else:
             missing.append("图片不足或为占位图")
+        detail_degraded_reason = safe_text(snapshot.raw.get("detail_degraded_reason"))
         if snapshot.detail_fetched:
             satisfied.append("已补齐房源详情")
+        elif detail_degraded_reason:
+            missing.append(detail_degraded_reason)
         else:
             missing.append("未补齐详情页字段")
         if request.budget_max is not None:
@@ -250,7 +274,12 @@ class PropertyAdvisorOrchestrator:
                 satisfied.append(f"推断卧室数约 {snapshot.inferred_bedrooms:g}")
             else:
                 missing.append("卧室数待确认")
-        missing.extend(["面积待确认", "卫浴数待确认"])
+        attributes = snapshot.raw.get("attributes") if isinstance(snapshot.raw.get("attributes"), dict) else {}
+        missing.append("面积待确认")
+        if safe_text(snapshot.raw.get("bathrooms_text") or attributes.get("Number Of Bathrooms") or attributes.get("Bathrooms")):
+            satisfied.append(f"卫浴信息：{safe_text(snapshot.raw.get('bathrooms_text') or attributes.get('Number Of Bathrooms') or attributes.get('Bathrooms'))}")
+        else:
+            missing.append("卫浴数待确认")
 
         map_assessment = (map_item or {}).get("assessments") or {}
         map_links = (map_item or {}).get("verification_links") or {}
@@ -358,3 +387,12 @@ def _as_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _routing_payload(request: SearchRequest) -> dict[str, Any]:
+    return {
+        "market_hint": request.market_hint,
+        "resolved_market": request.resolved_market,
+        "reason": request.routing_reason,
+        "search_location_hint": request.search_location_hint,
+    }

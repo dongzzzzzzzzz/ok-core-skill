@@ -7,6 +7,7 @@
 - 上游房源数据尽量原样保留
 - 编排层可以新增派生字段，但不能丢原始字段
 - 最终展示和 join 逻辑必须优先依赖原始链接和标识符
+- 同一份 contract 同时适用于 `ok-core-skill` 和 `gt-core-skill`
 
 ## 1. ListingList
 
@@ -54,8 +55,15 @@
 - `lat`
 - `lng`
 - `geo_precision`
+- `attributes`
+- `bedrooms_text`
+- `bathrooms_text`
+- `property_type`
+- `date_available`
+- `seller_type`
 
 详情补全失败时，编排层必须保留原列表数据并显式标记 `detail_fetched=false`。
+如果是 GT API 降级链路，必须额外保留 `detail_degraded_reason`。
 
 ## 3. RawListingSnapshot
 
@@ -102,6 +110,13 @@
 - `inferred_bedrooms`
 - `image_count`
 - `has_placeholder_image`
+
+### 市场来源字段
+
+- `request.resolved_market`: `ok` 或 `gt`
+- `raw.source_market`: 上游来源市场
+- `raw.source_runtime_mode`: `ok` / `bridge` / `api`
+- `raw.source_routing_reason`: 路由命中原因
 
 ## 4. Join 规则
 

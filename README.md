@@ -5,8 +5,9 @@ OpenClaw 优先的房产搜索与地图增强编排 skill。
 这个仓库不再是“只会分析文档的纯决策层”，而是一个完整的执行型编排层：
 
 1. 解析用户的房产需求
-2. 预检 `ok-core-skill` 运行环境
-3. 通过 `ok-core-skill` 搜索房源并补齐详情
+2. 根据市场路由选择 `ok-core-skill` 或 `gt-core-skill`
+3. 预检所选上游 skill 运行环境
+4. 通过上游 skill 搜索房源并补齐详情
 4. 保存原始房源快照
 5. 显式调用仓库内的 `public-osm-map-context-skill`
 6. 生成带证据的地图结论
@@ -14,9 +15,17 @@ OpenClaw 优先的房产搜索与地图增强编排 skill。
 
 ## 当前能力
 
+- 自动根据请求路由市场：
+  - 非英国默认走 `ok-core-skill`
+  - 英国城市 / postcode / 学校 / 大学 / Tube / Council Tax 等信号默认走 `gt-core-skill`
 - 自动发现 `ok-core-skill` 路径
+- 自动发现 `gt-core-skill`：
+  - 优先已安装的 OpenClaw / Codex skill 目录
+  - 回退本地桌面开发路径
 - 固定优先使用 `uv run python scripts/cli.py`
 - `uv` 不可用或 smoke 失败时回退到 `ok-core-skill/.venv/bin/python`
+- `gt-core-skill` Bridge 版优先走 `uv run python scripts/cli.py`
+- `gt-core-skill` API 版作为受控降级 fallback
 - 显式调用 bundled `public-osm-map-context-skill/scripts/cli.py`
 - 输出固定候选表：
   - `候选房源`
@@ -38,10 +47,13 @@ Property-Advisor/
 ├── scripts/cli.py
 ├── property_advisor/
 │   ├── analysis.py
+│   ├── gt_client.py
 │   ├── map_client.py
 │   ├── models.py
 │   ├── ok_client.py
-│   └── orchestrator.py
+│   ├── orchestrator.py
+│   ├── routing.py
+│   └── source_client.py
 ├── public-osm-map-context-skill/
 │   ├── scripts/cli.py
 │   └── tests/
@@ -55,6 +67,12 @@ Property-Advisor/
 
 ## 运行规则
 
+### 市场路由
+
+- 默认 `market=auto`
+- 命中英国语义时走 `gt-core-skill`
+- 混合英国和非英国高置信地理信号时，返回澄清错误，不静默混用
+
 ### ok-core-skill 路径发现
 
 按下面顺序解析：
@@ -63,6 +81,18 @@ Property-Advisor/
 2. `PROPERTY_OK_SKILL_ROOT`
 3. `/Users/a58/Desktop/skills/ok-core-skill`
 4. 历史兼容路径 `/Users/a58/Desktop/ok-core-skill/skills/ok-core-skill`
+
+### gt-core-skill 路径发现
+
+按下面顺序解析：
+
+1. `GT_CORE_SKILL_ROOT`
+2. `PROPERTY_GT_SKILL_ROOT`
+3. 当前工作区 `.agents/skills` 与 `skills`
+4. `$CODEX_HOME/skills` / `~/.codex/skills`
+5. 本地桌面 `gt-core-skill` 开发路径
+
+Bridge 版优先于 API 版。
 
 ### ok-core-skill 执行顺序
 
@@ -102,7 +132,17 @@ python3 scripts/cli.py search \
   --bedrooms 1
 ```
 
-### 3. 用地图 fixture 跑稳定回归
+### 3. 走英国 GT 链路
+
+```bash
+python3 scripts/cli.py search \
+  --keyword "studio flat" \
+  --query-text "找 London 的 studio flat" \
+  --market auto \
+  --destination "King's Cross London"
+```
+
+### 4. 用地图 fixture 跑稳定回归
 
 ```bash
 python3 scripts/cli.py search \
@@ -118,6 +158,9 @@ python3 scripts/cli.py search \
 搜索结果默认返回 JSON，其中包含：
 
 - `preflight`
+- `selected_source`
+- `selected_runtime_mode`
+- `routing`
 - `raw_listing_snapshots`
 - `map_report`
 - `candidate_rows`

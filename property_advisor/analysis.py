@@ -46,9 +46,9 @@ def parse_price_text(price_text: str | None) -> dict[str, Any]:
             currency = token
             break
     period = None
-    if any(token in lowered for token in ("/wk", " per week", "weekly", "/pw", " week")):
+    if any(token in lowered for token in ("/wk", " per week", "weekly", "/pw", " week")) or re.search(r"(?<![a-z])pw\b", lowered):
         period = "week"
-    elif any(token in lowered for token in ("/mo", " per month", "monthly", " pcm", " month")):
+    elif any(token in lowered for token in ("/mo", " per month", "monthly", " pcm", " month")) or re.search(r"(?<![a-z])pm\b", lowered):
         period = "month"
     elif any(token in lowered for token in ("/yr", " per year", "yearly", "annual", " p.a")):
         period = "year"
