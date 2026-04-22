@@ -63,6 +63,9 @@ def full_search_flow(
         price_min: 最低价格
         price_max: 最高价格
     """
+    # 归一化：agent 可能传入 code 格式（如 "new-york"），转为 UI 可搜索的格式
+    city_keyword = city_keyword.replace("-", " ")
+
     result = FullSearchResult(flow={
         "country": country,
         "city_keyword": city_keyword,

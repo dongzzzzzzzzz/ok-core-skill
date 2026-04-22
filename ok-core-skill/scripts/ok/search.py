@@ -34,7 +34,7 @@ def _filter_by_price(
     price_min: float | None,
     price_max: float | None,
 ) -> list[Listing]:
-    """Filter listings by price range. Keeps items with unparseable prices."""
+    """Filter listings by price range. Drops items with unparseable prices."""
     if price_min is None and price_max is None:
         return listings
 
@@ -42,7 +42,6 @@ def _filter_by_price(
     for item in listings:
         val = _parse_price(item.price)
         if val is None:
-            filtered.append(item)
             continue
         if price_min is not None and val < price_min:
             continue

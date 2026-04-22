@@ -60,15 +60,15 @@ description: |
 
 ---
 
-## 步骤 2 — 查询城市英文 code
+## 步骤 2 — 查询城市名称
 
-用 `list-cities` 确认城市的英文 code：
+用 `list-cities` 确认城市的英文名称：
 
 ```bash
 uv run --project <SKILL_DIR> ok-cli list-cities --country <国家> --mode search --keyword <城市英文名>
 ```
 
-从返回结果中选取最匹配的城市 code，传给下一步的 `--city` 参数。
+从返回结果中选取最匹配的城市 **name**（不是 code），传给下一步的 `--city` 参数。`full-search` 内部通过 UI 搜索城市，需要人类可读的名称。
 
 > 如果 `list-cities` 返回空（`total: 0`），直接用城市英文名作为 `--city` 参数即可——`full-search` 内部会通过 UI 搜索城市，不依赖此步结果。**禁止在搜索流程中使用 `set-locale` 或 `get-locale`**，`full-search` 已内置城市切换。
 
@@ -78,7 +78,7 @@ uv run --project <SKILL_DIR> ok-cli list-cities --country <国家> --mode search
 
 ```bash
 uv run --project <SKILL_DIR> ok-cli full-search \
-  --country <国家> --city <城市code> \
+  --country <国家> --city <城市name> \
   [--category <分类code>] [--keyword <搜索关键词>] \
   [--min-price <数值>] [--max-price <数值>] \
   [--max-results 20]
@@ -99,12 +99,13 @@ uv run --project <SKILL_DIR> ok-cli full-search \
 步骤2 查城市：
 ```bash
 uv run --project <SKILL_DIR> ok-cli list-cities --country usa --mode search --keyword washington
-# 返回 → code: "washington", name: "Washington"
+# 返回 → name: "Washington", code: "washington"
+# 用 name 字段传给 --city
 ```
 
 步骤3 执行搜索：
 ```bash
-uv run --project <SKILL_DIR> ok-cli full-search --country usa --city washington --category property --max-price 1000000
+uv run --project <SKILL_DIR> ok-cli full-search --country usa --city Washington --category property --max-price 1000000
 ```
 
 **用户："在新加坡搜索笔记本电脑"**
