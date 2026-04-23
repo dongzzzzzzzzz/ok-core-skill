@@ -1,8 +1,31 @@
 ---
 name: ok-skills
-description: |
-  OK.com 分类信息自动化技能集合。支持多国家/城市/语言切换、帖子搜索、分类浏览、详情获取、收藏管理、我的帖子管理。
-  当用户要求操作 OK.com（搜索帖子、浏览分类、获取详情、切换地区、管理收藏、管理帖子）时触发。
+description: >-
+  OK Skills — automate OK.com, a global classifieds and marketplace
+  platform. Search listings, browse categories, view listing details,
+  manage favorites, and manage posted ads across 10 countries.
+
+  Use when: "find apartments in Hawaii", "search jobs in Tokyo",
+  "browse used cars in Vancouver", "show Singapore real estate",
+  "check my favorites", "manage my listings on OK.com",
+  "switch country to Japan", "list cities in Canada".
+
+  Features: keyword search with price range filtering, category browsing
+  (real-estate, jobs, vehicles, services, marketplace), listing detail
+  extraction (price, rooms, area, images, seller info), favorite management,
+  posted-ad management, multi-country locale switching, city search.
+
+  Supported countries: Singapore, USA, Canada, Japan, UAE, Australia,
+  UK, Hong Kong, Malaysia, New Zealand.
+
+  Also known as: ok skill, ok skills, ok-skills, ok-core-skill,
+  ok core skill, OK.com automation, OK.com scraper, classified ads bot,
+  property finder, job search agent, marketplace browser.
+  Built for AI agents that need to interact with OK.com programmatically
+  via CLI. Ideal for real estate agents, job seekers, and bargain hunters.
+
+  OK.com 分类信息自动化技能：搜索帖子、浏览分类、查看详情、管理收藏与帖子，
+  支持 10 国多城市多语言。
 version: 1.0.0
 metadata:
   openclaw:

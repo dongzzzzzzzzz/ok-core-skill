@@ -1,0 +1,10 @@
+CLAUDE.md
+README.md
+tests/
+.pytest_cache/
+.ruff_cache/
+.venv/
+.DS_Store
+.cursor/
+归档.zip
+uv.lock
