@@ -73,6 +73,9 @@ async function handleCommand(msg) {
     case "set_file_input":
       return await cmdSetFileInputViaDebugger(params);
 
+    case "debugger_type_text":
+      return await cmdTypeTextViaDebugger(params);
+
     case "get_cookies":
       return await cmdGetCookies(params);
 
@@ -275,6 +278,22 @@ async function cmdSetFileInputViaDebugger({ selector, files }) {
       nodeId,
       files,
     });
+  } finally {
+    await chrome.debugger.detach(target).catch(() => {});
+  }
+  return null;
+}
+
+async function cmdTypeTextViaDebugger({ text, delay = 25 }) {
+  const tab = await getOrOpenOkTab();
+  const target = { tabId: tab.id };
+
+  await chrome.debugger.attach(target, "1.3");
+  try {
+    for (const ch of text || "") {
+      await chrome.debugger.sendCommand(target, "Input.insertText", { text: ch });
+      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+    }
   } finally {
     await chrome.debugger.detach(target).catch(() => {});
   }

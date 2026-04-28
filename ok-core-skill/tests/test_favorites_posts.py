@@ -90,6 +90,41 @@ class TestMyPostItemModel:
         assert "draft" in VALID_STATES
 
 
+class TestPublishPropertyModel:
+    """Validate publish-property helpers."""
+
+    def test_create_publish_property_request(self):
+        from ok.publish_property import PublishPropertyRequest
+
+        req = PublishPropertyRequest(
+            mode="sale",
+            property_type="apartment",
+            title="Modern 2BR apartment",
+            description="Bright apartment near metro.",
+            subdomain="ae",
+            price=1200000,
+        )
+        assert req.subdomain == "ae"
+        assert req.mode == "sale"
+        assert req.images == []
+
+    def test_result_to_dict(self):
+        from ok.publish_property import PublishPropertyResult, result_to_dict
+
+        data = result_to_dict(
+            PublishPropertyResult(
+                success=True,
+                action="filled",
+                mode="rent",
+                property_type="apartment",
+                url="https://aepub.ok.com/biz/en/publish/property",
+            )
+        )
+        assert data["success"] is True
+        assert data["action"] == "filled"
+        assert data["submitted"] is False
+
+
 class TestFavUrlConstruction:
     """Validate URL templates."""
 
@@ -176,6 +211,68 @@ class TestCliParserRegistration:
         )
         assert result.returncode == 0
         assert "--index" in result.stdout
+
+    def test_publish_property_help(self):
+        result = subprocess.run(
+            [*CLI, "publish-property", "--help"],
+            capture_output=True,
+            text=True,
+            cwd=CWD,
+        )
+        assert result.returncode == 0
+        assert "--mode" in result.stdout
+        assert "--country" in result.stdout
+        assert "--subdomain" in result.stdout
+        assert "--property-type" in result.stdout
+        assert "--submit" in result.stdout
+
+    def test_publish_property_dry_run_resolves_country(self):
+        result = subprocess.run(
+            [
+                *CLI,
+                "publish-property",
+                "--country",
+                "uae",
+                "--mode",
+                "sale",
+                "--property-type",
+                "apartment",
+                "--title",
+                "Test title",
+                "--description",
+                "Test description",
+                "--dry-run",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=CWD,
+        )
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert data["subdomain"] == "ae"
+
+    def test_publish_property_requires_target_site(self):
+        result = subprocess.run(
+            [
+                *CLI,
+                "publish-property",
+                "--mode",
+                "sale",
+                "--property-type",
+                "apartment",
+                "--title",
+                "Test title",
+                "--description",
+                "Test description",
+                "--dry-run",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=CWD,
+        )
+        assert result.returncode == 2
+        data = json.loads(result.stdout)
+        assert "--country 或 --subdomain" in data["error"]
 
 
 # ---------------------------------------------------------------------------

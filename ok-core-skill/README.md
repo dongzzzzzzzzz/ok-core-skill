@@ -16,6 +16,7 @@ OK.com 分类信息自动化 Skills，通过 Chrome 扩展 + Python 引擎，让
 | **ok-auth** | 登录检测 | 登录状态检查 |
 | **favorites** | 收藏管理 | 查看收藏列表、添加/取消收藏 |
 | **my-posts** | 我的帖子 | 查看/筛选我的帖子、删除帖子、获取编辑链接 |
+| **publish-property** | 房产发布 | 填写/发布 For Sale 与 For Rent 房产帖子 |
 
 ## 安装
 
@@ -112,6 +113,10 @@ uv run python scripts/cli.py list-my-posts --subdomain sg --state expired
 uv run python scripts/cli.py delete-post --subdomain sg --index 0
 uv run python scripts/cli.py edit-post --subdomain sg --index 0
 
+# 房产发布（显式指定目标国家或子域）
+uv run python scripts/cli.py publish-property --country uae --mode sale --property-type apartment --title "Modern 2BR apartment" --description "Bright apartment near metro." --price 1200000 --bedrooms 2 --bathrooms 2 --car-spaces 1 --area-size 1200 --location "Dubai Marina" --image "/path/photo.jpg" --submit
+uv run python scripts/cli.py publish-property --subdomain ae --mode rent --property-type apartment --rental-type entire --rent-period month --title "Furnished 1BR apartment" --description "Ready to move in." --price 8000 --bedrooms 1 --bathrooms 1 --area-size 850 --location "Downtown Dubai" --image "/path/photo.jpg" --submit
+
 ```
 
 ## CLI 命令参考
@@ -138,6 +143,7 @@ uv run python scripts/cli.py edit-post --subdomain sg --index 0
 | `list-my-posts` | 列出我的帖子 | `[--subdomain] [--state] [--max-results]` |
 | `delete-post` | 删除帖子（按序号） | `[--subdomain] --index` |
 | `edit-post` | 获取帖子编辑链接 | `[--subdomain] --index` |
+| `publish-property` | 填写/发布房产出售或出租帖子 | `(--country 或 --subdomain) --mode sale|rent --property-type --title --description [--price] [--image] [--submit]` |
 
 退出码：`0` 成功 · `2` 错误
 

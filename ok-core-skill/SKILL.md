@@ -13,7 +13,8 @@ description: >-
   Features: keyword search with price range filtering, category browsing
   (real-estate, jobs, vehicles, services, marketplace), listing detail
   extraction (price, rooms, area, images, seller info), favorite management,
-  posted-ad management, multi-country locale switching, city search.
+  posted-ad management, property posting, multi-country locale switching,
+  city search.
 
   Supported countries: Singapore, USA, Canada, Japan, UAE, Australia,
   UK, Hong Kong, Malaysia, New Zealand.
@@ -81,8 +82,9 @@ uv run playwright install chromium
 1. **地区切换**（"切换到新加坡 / 切换城市 / 列出国家 / 列出城市"）→ 执行 `ok-locale` 技能
 2. **推荐/详情**（"首页推荐 / 查看帖子详情"）→ 执行 `ok-explore` 技能
 3. **登录检测**（"检查登录 / 登录状态"）→ 执行 `ok-auth` 技能
-4. **收藏管理**（"查看收藏 / 收藏帖子 / 取消收藏"）→ **先读取 `skills/ok-account/SKILL.md`**，按其步骤执行（需登录）
-5. **我的帖子**（"查看我的帖子 / 删除帖子 / 编辑帖子"）→ **先读取 `skills/ok-account/SKILL.md`**，按其步骤执行（需登录）
+4. **发布房产帖子**（"发布卖房帖子 / 发布出租房 / 发房产广告"）→ **先读取 `skills/ok-publish/SKILL.md`**，按其步骤执行（需登录）
+5. **收藏管理**（"查看收藏 / 收藏帖子 / 取消收藏"）→ **先读取 `skills/ok-account/SKILL.md`**，按其步骤执行（需登录）
+6. **我的帖子**（"查看我的帖子 / 删除帖子 / 编辑帖子"）→ **先读取 `skills/ok-account/SKILL.md`**，按其步骤执行（需登录）
 
 ---
 
@@ -128,3 +130,12 @@ uv run --project <SKILL_DIR> ok-cli check-login
 ### ok-account — 收藏与我的帖子（需登录）
 
 所有收藏/帖子操作，**必须先读取 `skills/ok-account/SKILL.md`**，按其步骤检查登录、执行命令。
+
+### ok-publish — 房产发布（需登录）
+
+```bash
+uv run --project <SKILL_DIR> ok-cli publish-property --country <国家> --mode sale --property-type apartment --title "<标题>" --description "<描述>" --price <价格> --bedrooms <数量> --bathrooms <数量> --car-spaces <数量> --area-size <sqft> --location "<位置>" --image "<图片路径>" [--submit]
+uv run --project <SKILL_DIR> ok-cli publish-property --subdomain <子域> --mode rent --property-type apartment --rental-type entire --rent-period month --title "<标题>" --description "<描述>" --price <价格> --bedrooms <数量> --bathrooms <数量> --area-size <sqft> --location "<位置>" --image "<图片路径>" [--submit]
+```
+
+所有发布请求，**必须先读取 `skills/ok-publish/SKILL.md`**。目标站点必须显式传 `--country` 或 `--subdomain`，避免误发到默认国家。不传 `--submit` 只填写表单并返回页面 URL；传 `--submit` 才正式点击 Post。

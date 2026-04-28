@@ -145,7 +145,7 @@ def ensure_bridge_server(port: int = BRIDGE_PORT) -> None:
         pass
 
     # 启动 bridge server
-    server_script = Path(__file__).parent.parent / "bridge_server.py"
+    server_script = Path(__file__).resolve().parents[2] / "bridge_server.py"
     subprocess.Popen(
         [sys.executable, str(server_script), "--port", str(port)],
         stdout=subprocess.DEVNULL,

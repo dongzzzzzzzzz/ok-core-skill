@@ -30,6 +30,28 @@ def _error(message: str, exit_code: int = 2):
     _output({"error": message}, exit_code)
 
 
+def _resolve_publish_subdomain(country: str | None, subdomain: str | None) -> str:
+    """Resolve publish target from either a country name/code or a site subdomain."""
+    from ok.errors import OKError
+    from ok.locale import get_country_info
+
+    normalized_subdomain = subdomain.strip().lower() if subdomain else None
+    if country:
+        info = get_country_info(country)
+        country_subdomain = info["subdomain"]
+        if normalized_subdomain and normalized_subdomain != country_subdomain:
+            raise OKError(
+                f"--country {country} 对应子域 {country_subdomain}, "
+                f"与 --subdomain {normalized_subdomain} 不一致"
+            )
+        return country_subdomain
+
+    if normalized_subdomain:
+        return normalized_subdomain
+
+    raise OKError("发布房产必须指定目标站点: 传 --country 或 --subdomain")
+
+
 # ─── subcommand handlers ────────────────────────────────────────────────────
 
 
@@ -416,6 +438,64 @@ def cmd_edit_post(args):
     _output(result)
 
 
+def cmd_publish_property(args):
+    """发布/填写房产出售或出租帖子"""
+    if args.submit and args.save_draft:
+        _error("--submit 和 --save-draft 只能选择一个")
+
+    subdomain = _resolve_publish_subdomain(args.country, args.subdomain)
+    args.subdomain = subdomain
+
+    if args.dry_run:
+        _output({
+            "success": True,
+            "action": "dry_run",
+            "country": args.country,
+            "subdomain": subdomain,
+            "mode": args.mode,
+            "property_type": args.property_type,
+            "would_submit": args.submit,
+            "would_save_draft": args.save_draft,
+        })
+
+    client = get_client()
+    from ok.publish_property import (
+        PublishPropertyRequest,
+        publish_property,
+        result_to_dict,
+    )
+
+    req = PublishPropertyRequest(
+        mode=args.mode,
+        property_type=args.property_type,
+        title=args.title,
+        description=args.description,
+        subdomain=subdomain,
+        price=args.price,
+        location=args.location,
+        images=args.images or [],
+        floor_plans=args.floor_plans or [],
+        lang=args.lang,
+        rental_type=args.rental_type,
+        rent_period=args.rent_period,
+        bedrooms=args.bedrooms,
+        bathrooms=args.bathrooms,
+        car_spaces=args.car_spaces,
+        floor_level=args.floor_level,
+        floor=args.floor,
+        area_size=args.area_size,
+        phone=args.phone,
+        whatsapp=args.whatsapp,
+        unit_features=args.unit_features or [],
+        amenities=args.amenities or [],
+        property_services=args.property_services or [],
+        submit=args.submit,
+        save_draft=args.save_draft,
+    )
+    result = publish_property(client, req)
+    _output(result_to_dict(result), 0 if result.success else 2)
+
+
 # ─── argument parser ────────────────────────────────────────────────────────
 
 
@@ -537,6 +617,94 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--lang", default="en")
     p.add_argument("--index", type=int, default=0, help="帖子序号（0-based）")
 
+    # ─── property publishing ─────────────────────────────────
+    p = sub.add_parser("publish-property", help="Fill or publish a property post")
+    p.add_argument(
+        "--country",
+        default=None,
+        help="target country name/code, e.g. uae/singapore/usa/uk; resolves site subdomain",
+    )
+    p.add_argument(
+        "--subdomain",
+        default=None,
+        help="target site subdomain, e.g. ae/sg/us/gb; required if --country is omitted",
+    )
+    p.add_argument("--mode", required=True, choices=["sale", "rent"], help="sale or rent")
+    p.add_argument(
+        "--property-type",
+        default="apartment",
+        choices=["apartment", "villa", "townhouse", "land", "other"],
+        help="property type",
+    )
+    p.add_argument("--lang", default="en")
+    p.add_argument("--title", required=True, help="post title")
+    p.add_argument("--description", required=True, help="post description")
+    p.add_argument("--price", default=None, help="price amount")
+    p.add_argument("--location", default=None, help="location keyword, e.g. Dubai Marina")
+    p.add_argument(
+        "--image",
+        action="append",
+        dest="images",
+        default=[],
+        help="image path; repeatable",
+    )
+    p.add_argument(
+        "--floor-plan",
+        action="append",
+        dest="floor_plans",
+        default=[],
+        help="floor plan path; repeatable",
+    )
+    p.add_argument(
+        "--rental-type",
+        choices=["entire", "shared"],
+        default="entire",
+        help="rent only: entire or shared",
+    )
+    p.add_argument(
+        "--rent-period",
+        choices=["day", "week", "month", "quarter", "year"],
+        default=None,
+        help="rent only: day/week/month/quarter/year",
+    )
+    p.add_argument("--bedrooms", default=None, help="bedrooms, e.g. 2, Studio, 8+")
+    p.add_argument("--bathrooms", default=None, help="bathrooms, e.g. 2 or Shared")
+    p.add_argument("--car-spaces", default=None, help="sale only: car spaces")
+    p.add_argument(
+        "--floor-level",
+        choices=["one", "multi"],
+        default=None,
+        help="floor level: one or multi",
+    )
+    p.add_argument("--floor", default=None, help="floor number")
+    p.add_argument("--area-size", default=None, help="area size in sqft")
+    p.add_argument("--phone", default=None, help="phone number; site prefix is selected by page")
+    p.add_argument("--whatsapp", default=None, help="WhatsApp number; site prefix is selected by page")
+    p.add_argument(
+        "--unit-feature",
+        action="append",
+        dest="unit_features",
+        default=[],
+        help="Unit Feature text; repeatable",
+    )
+    p.add_argument(
+        "--amenity",
+        action="append",
+        dest="amenities",
+        default=[],
+        help="Amenity text; repeatable",
+    )
+    p.add_argument(
+        "--property-service",
+        action="append",
+        dest="property_services",
+        default=[],
+        help="Property Service text; repeatable",
+    )
+    p.add_argument("--submit", action="store_true", help="click Post after filling")
+    p.add_argument("--save-draft", action="store_true", help="click Save the draft after filling")
+    p.add_argument("--dry-run", action="store_true", help="print the intended action only")
+
     return parser
 
 
@@ -561,6 +729,7 @@ _CMD_MAP = {
     "list-my-posts": cmd_list_my_posts,
     "delete-post": cmd_delete_post,
     "edit-post": cmd_edit_post,
+    "publish-property": cmd_publish_property,
 }
 
 
@@ -586,15 +755,23 @@ def main():
     _LOGIN_REQUIRED_CMDS = {
         "list-favorites", "add-favorite", "remove-favorite",
         "list-my-posts", "delete-post", "edit-post",
+        "publish-property",
     }
 
     try:
-        if args.command in _LOGIN_REQUIRED_CMDS:
+        if args.command in _LOGIN_REQUIRED_CMDS and not getattr(args, "dry_run", False):
             from ok.client.factory import get_client
             from ok.login import check_login
 
             client = get_client()
-            subdomain = getattr(args, "subdomain", None)
+            if args.command == "publish-property":
+                subdomain = _resolve_publish_subdomain(
+                    getattr(args, "country", None),
+                    getattr(args, "subdomain", None),
+                )
+                args.subdomain = subdomain
+            else:
+                subdomain = getattr(args, "subdomain", None)
             status = check_login(client, subdomain=subdomain)
             if not status["logged_in"]:
                 site = f" ({subdomain}.ok.com)" if subdomain else ""

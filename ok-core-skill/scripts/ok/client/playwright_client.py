@@ -117,6 +117,12 @@ class PlaywrightClient(BaseClient):
         params = params or {}
         if method == "press_key":
             self.page.keyboard.press(params.get("key", ""))
+        elif method == "debugger_type_text":
+            self.page.keyboard.type(params.get("text", ""), delay=params.get("delay", 25))
+        elif method == "set_file_input":
+            selector = params.get("selector", "")
+            files = params.get("files") or []
+            self.page.locator(selector).first.set_input_files(files)
         elif method == "get_cookies":
             return self.context.cookies()
         elif method == "screenshot_element":
