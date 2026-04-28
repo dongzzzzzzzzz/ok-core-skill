@@ -16,11 +16,15 @@ from property_advisor import (
     PipelineReport,
     PreflightReport,
     PropertyAdvisorOrchestrator,
+    PublishPropertyOrchestrator,
     PublicOsmMapClient,
     SearchRequest,
     apply_market_routing,
+    classify_user_intent,
+    infer_publish_request,
 )
 from property_advisor.analysis import unique_strings
+from property_advisor.publish import load_publish_payload_file
 
 
 def emit(payload: dict, exit_code: int = 0) -> int:
@@ -36,6 +40,11 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--ok-skill-root", default="")
     doctor.add_argument("--gt-skill-root", default="")
     doctor.add_argument("--skip-browser-smoke", action="store_true")
+
+    route = subparsers.add_parser("route", help="Classify user intent as consumer search, business publish, or clarify")
+    route.add_argument("--query-text", default="")
+    route.add_argument("--mode", choices=["auto", "sale", "rent"], default="auto")
+    route.add_argument("--market", choices=["auto", "ok", "gt"], default="auto")
 
     search = subparsers.add_parser("search", help="Run the full listing -> detail -> map -> decision pipeline")
     search.add_argument("--keyword", default="")
@@ -55,6 +64,44 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--ok-skill-root", default="")
     search.add_argument("--gt-skill-root", default="")
     search.add_argument("--market", choices=["auto", "ok", "gt"], default="auto")
+
+    publish = subparsers.add_parser("publish", help="Prepare, fill, or publish a business-side property listing")
+    publish.add_argument("--payload-file", default="", help="JSON file using PublishPropertyRequest fields")
+    publish.add_argument("--query-text", default="")
+    publish.add_argument("--market", choices=["auto", "ok", "gt"], default="auto")
+    publish.add_argument("--mode", choices=["auto", "sale", "rent"], default="auto")
+    publish.add_argument("--country", default="")
+    publish.add_argument("--subdomain", default="")
+    publish.add_argument("--property-type", default="")
+    publish.add_argument("--title", default="")
+    publish.add_argument("--description", default="")
+    publish.add_argument("--price", default="")
+    publish.add_argument("--location", default="")
+    publish.add_argument("--image", action="append", default=[])
+    publish.add_argument("--floor-plan", action="append", default=[])
+    publish.add_argument("--rental-type", default="entire")
+    publish.add_argument("--rent-period", default="")
+    publish.add_argument("--bedrooms", default="")
+    publish.add_argument("--bathrooms", default="")
+    publish.add_argument("--car-spaces", default="")
+    publish.add_argument("--floor-level", default="")
+    publish.add_argument("--floor", default="")
+    publish.add_argument("--area-size", default="")
+    publish.add_argument("--phone", default="")
+    publish.add_argument("--whatsapp", default="")
+    publish.add_argument("--unit-feature", action="append", default=[])
+    publish.add_argument("--amenity", action="append", default=[])
+    publish.add_argument("--property-service", action="append", default=[])
+    publish.add_argument("--contact-name", default="")
+    publish.add_argument("--contact-email", default="")
+    publish.add_argument("--category-id", default="", help="Required for GT dry-run payloads")
+    publish.add_argument("--postcode", default="")
+    publish.add_argument("--lang", default="en")
+    publish.add_argument("--confirm-submit", action="store_true", help="Actually submit; otherwise only dry-run/fill form")
+    publish.add_argument("--save-draft", action="store_true")
+    publish.add_argument("--dry-run", action="store_true")
+    publish.add_argument("--ok-skill-root", default="")
+    publish.add_argument("--gt-skill-root", default="")
     return parser
 
 
@@ -73,6 +120,65 @@ def main() -> int:
         }
         exit_code = 0 if payload["ok_core_skill"]["ok"] and payload["public_osm_map_context"].get("status") == "ok" else 2
         return emit(payload, exit_code=exit_code)
+
+    if args.command == "route":
+        decision = classify_user_intent(args.query_text, mode_hint=args.mode, market_hint=args.market)
+        return emit(decision.to_dict(), exit_code=0 if not decision.error else 2)
+
+    if args.command == "publish":
+        try:
+            request = (
+                load_publish_payload_file(args.payload_file)
+                if args.payload_file
+                else infer_publish_request(
+                    query_text=args.query_text,
+                    market_hint=args.market,
+                    mode=args.mode,
+                    country=args.country,
+                    subdomain=args.subdomain,
+                    property_type=args.property_type,
+                    title=args.title,
+                    description=args.description,
+                    price=args.price or None,
+                    location=args.location,
+                    images=args.image,
+                    floor_plans=args.floor_plan,
+                    rental_type=args.rental_type,
+                    rent_period=args.rent_period or None,
+                    bedrooms=args.bedrooms or None,
+                    bathrooms=args.bathrooms or None,
+                    car_spaces=args.car_spaces or None,
+                    floor_level=args.floor_level or None,
+                    floor=args.floor or None,
+                    area_size=args.area_size or None,
+                    phone=args.phone or None,
+                    whatsapp=args.whatsapp or None,
+                    unit_features=args.unit_feature,
+                    amenities=args.amenity,
+                    property_services=args.property_service,
+                    contact_name=args.contact_name or None,
+                    contact_email=args.contact_email or None,
+                    category_id=args.category_id or None,
+                    postcode=args.postcode or None,
+                    lang=args.lang,
+                )
+            )
+            if args.payload_file:
+                request.query_text = args.query_text or request.query_text
+                request.market_hint = args.market if args.market != "auto" else request.market_hint
+        except Exception as exc:
+            return emit({"errors": [str(exc)]}, exit_code=2)
+        orchestrator = PublishPropertyOrchestrator(
+            ok_skill_root=args.ok_skill_root or None,
+            gt_skill_root=args.gt_skill_root or None,
+        )
+        report = orchestrator.publish(
+            request,
+            confirm_submit=args.confirm_submit,
+            save_draft=args.save_draft,
+            dry_run=args.dry_run,
+        )
+        return emit(report.to_dict(), exit_code=0 if not report.errors else 2)
 
     request = SearchRequest(
         keyword=args.keyword,

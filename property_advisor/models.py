@@ -31,6 +31,109 @@ class SearchRequest:
 
 
 @dataclass
+class IntentDecision:
+    intent: str
+    reason: str
+    mode: str = ""
+    market: str = ""
+    warnings: list[str] = field(default_factory=list)
+    signals: list[str] = field(default_factory=list)
+    error: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class ListingStrengthProfile:
+    strengths: list[str] = field(default_factory=list)
+    unit_features: list[str] = field(default_factory=list)
+    amenities: list[str] = field(default_factory=list)
+    property_services: list[str] = field(default_factory=list)
+    target_audiences: list[str] = field(default_factory=list)
+    source_phrases: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class PublishPropertyRequest:
+    mode: str = ""
+    country: str = ""
+    subdomain: str = ""
+    property_type: str = "apartment"
+    title: str = ""
+    description: str = ""
+    price: str | None = None
+    location: str = ""
+    images: list[str] = field(default_factory=list)
+    floor_plans: list[str] = field(default_factory=list)
+    rental_type: str = "entire"
+    rent_period: str | None = None
+    bedrooms: str | None = None
+    bathrooms: str | None = None
+    car_spaces: str | None = None
+    floor_level: str | None = None
+    floor: str | None = None
+    area_size: str | None = None
+    phone: str | None = None
+    whatsapp: str | None = None
+    unit_features: list[str] = field(default_factory=list)
+    amenities: list[str] = field(default_factory=list)
+    property_services: list[str] = field(default_factory=list)
+    contact_name: str | None = None
+    contact_email: str | None = None
+    category_id: str | None = None
+    postcode: str | None = None
+    lang: str = "en"
+    query_text: str = ""
+    market_hint: str = "ok"
+    resolved_market: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class PublishPropertyReport:
+    request: PublishPropertyRequest
+    intent: IntentDecision
+    strength_profile: ListingStrengthProfile
+    preflight: PreflightReport | None = None
+    selected_source: str | None = None
+    selected_runtime_mode: str | None = None
+    generated_title: str = ""
+    generated_description: str = ""
+    missing_fields: list[str] = field(default_factory=list)
+    recommended_missing_fields: list[str] = field(default_factory=list)
+    follow_up_questions: list[str] = field(default_factory=list)
+    command: list[str] = field(default_factory=list)
+    publish_result: dict[str, Any] | None = None
+    warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "request": self.request.to_dict(),
+            "intent": self.intent.to_dict(),
+            "strength_profile": self.strength_profile.to_dict(),
+            "preflight": self.preflight.to_dict() if self.preflight else None,
+            "selected_source": self.selected_source,
+            "selected_runtime_mode": self.selected_runtime_mode,
+            "generated_title": self.generated_title,
+            "generated_description": self.generated_description,
+            "missing_fields": list(self.missing_fields),
+            "recommended_missing_fields": list(self.recommended_missing_fields),
+            "follow_up_questions": list(self.follow_up_questions),
+            "command": list(self.command),
+            "publish_result": self.publish_result,
+            "warnings": list(self.warnings),
+            "errors": list(self.errors),
+        }
+
+
+@dataclass
 class PreflightCheck:
     name: str
     ok: bool

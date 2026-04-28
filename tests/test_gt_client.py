@@ -7,7 +7,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from property_advisor.gt_client import GTCoreSkillClient, canonicalize_gumtree_url, extract_gumtree_listing_id
+from property_advisor.gt_client import (
+    GTCoreSkillClient,
+    GTPublishSkillClient,
+    canonicalize_gumtree_url,
+    extract_gumtree_listing_id,
+)
+from property_advisor.models import PublishPropertyRequest
 
 
 def completed(*, returncode: int = 0, stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess[str]:
@@ -187,6 +193,59 @@ class GTCoreSkillClientTests(unittest.TestCase):
             "https://www.gumtree.com/p/property-to-rent/test/1511100050",
         )
         self.assertEqual(extract_gumtree_listing_id("https://gumtree.com/p/test/1511100050"), "1511100050")
+
+    def test_publish_client_uses_publish_listing_dry_run(self) -> None:
+        calls = []
+        publish_response = {
+            "ok": True,
+            "dry_run": True,
+            "message": "publish payload 校验通过，未实际发起发布请求",
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "scripts").mkdir()
+            (root / "scripts" / "cli.py").write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+
+            def runner(command, **kwargs):
+                calls.append(command)
+                cwd = kwargs.get("cwd")
+                if cwd != str(root):
+                    return completed(returncode=1, stderr="unexpected cwd")
+                if command == [sys.executable, "-B", "scripts/cli.py", "--help"]:
+                    return completed(stdout=API_HELP)
+                if command == ["python3", "scripts/cli.py", "publish-listing", "--help"]:
+                    return completed(stdout="usage: publish-listing --payload-file FILE [--dry-run]")
+                if command[:3] == ["python3", "scripts/cli.py", "publish-listing"]:
+                    return completed(stdout=json.dumps(publish_response))
+                return completed(returncode=1, stderr=f"unexpected command: {command}")
+
+            client = GTPublishSkillClient(
+                skill_root=root,
+                runner=runner,
+                which=lambda command: "/usr/bin/python3" if command == "python3" else None,
+                env={},
+            )
+            report = client.doctor()
+            result = client.publish_property(
+                PublishPropertyRequest(
+                    mode="rent",
+                    property_type="apartment",
+                    title="Furnished 1BR in Richmond",
+                    description="Near station.",
+                    location="Richmond",
+                    price="1200",
+                    phone="07123456789",
+                    category_id="12345",
+                    images=["/tmp/photo.jpg"],
+                    rent_period="month",
+                )
+            )
+
+        self.assertTrue(report.ok)
+        self.assertTrue(result["dry_run"])
+        self.assertIn("--dry-run", client.last_command)
+        self.assertIn("publish-listing", client.last_command)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
-from .models import PreflightCheck, PreflightReport
+from .models import PreflightCheck, PreflightReport, PublishPropertyRequest
+from .publish import ok_publish_args
 
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
@@ -69,6 +70,7 @@ class OKCoreSkillClient:
         self._selected_runner: str | None = None
         self._selected_prefix: list[str] | None = None
         self._warnings: list[str] = []
+        self.last_command: list[str] = []
 
     def doctor(self, *, run_browser_smoke: bool = True) -> PreflightReport:
         checks: list[PreflightCheck] = []
@@ -202,6 +204,17 @@ class OKCoreSkillClient:
     def get_listing_detail(self, *, url: str) -> dict[str, Any]:
         return self._run_json(["get-listing", "--url", url])
 
+    def publish_property(
+        self,
+        request: PublishPropertyRequest,
+        *,
+        submit: bool = False,
+        save_draft: bool = False,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        args = ok_publish_args(request, submit=submit, save_draft=save_draft, dry_run=dry_run)
+        return self._run_json(args, timeout=300)
+
     def drain_warnings(self) -> list[str]:
         warnings = list(self._warnings)
         self._warnings.clear()
@@ -268,7 +281,8 @@ class OKCoreSkillClient:
 
     def _run_json(self, args: list[str], *, timeout: int = 120) -> dict[str, Any]:
         prefix, _runtime_name = self._ensure_runtime()
-        completed = self._run(prefix + args, timeout=timeout, check=False)
+        self.last_command = prefix + args
+        completed = self._run(self.last_command, timeout=timeout, check=False)
         if completed.returncode != 0:
             raise OKCoreSkillError(
                 f"ok-core-skill command failed ({completed.returncode}): {' '.join(prefix + args)}\n"

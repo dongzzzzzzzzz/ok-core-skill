@@ -1,8 +1,8 @@
 # Property Advisor
 
-OpenClaw 优先的房产搜索与地图增强编排 skill。
+OpenClaw 优先的房产搜索、地图增强与房源发布编排 skill。
 
-这个仓库不再是“只会分析文档的纯决策层”，而是一个完整的执行型编排层：
+这个仓库不再是“只会分析文档的纯决策层”，而是一个完整的执行型编排层。C 端找房链路：
 
 1. 解析用户的房产需求
 2. 根据市场路由选择 `ok-core-skill` 或 `gt-core-skill`
@@ -12,6 +12,16 @@ OpenClaw 优先的房产搜索与地图增强编排 skill。
 5. 显式调用仓库内的 `public-osm-map-context-skill`
 6. 生成带证据的地图结论
 7. 输出固定 8 列候选表
+
+B 端发布链路：
+
+1. 识别用户是找房还是发布房源
+2. 判断出租 / 出售
+3. 抽取发布字段与房源强项
+4. 信息不足时返回追问，不调用发布命令
+5. 第一阶段调用 `ok-core-skill publish-property`
+6. 默认只 dry-run 或填表，不自动提交
+7. 用户确认后才允许带 `--submit` 真实发布
 
 ## 当前能力
 
@@ -37,6 +47,12 @@ OpenClaw 优先的房产搜索与地图增强编排 skill。
   - `淘汰原因/风险`
   - `房源链接`
 - 缺少原帖链接的房源 fail-closed，不会被点名展示
+- B 端发布支持：
+  - `business_publish` 意图识别
+  - 发布字段完整度检查
+  - 房源标题/描述与强项生成
+  - OK `publish-property` dry-run / 填表 / 确认发布
+  - GT `publish-listing` payload 与 dry-run 预置
 
 ## 项目结构
 
@@ -153,6 +169,27 @@ python3 scripts/cli.py search \
   --map-fixture-dir public-osm-map-context-skill/tests/fixtures/osm
 ```
 
+### 5. B 端发布意图识别
+
+```bash
+python3 scripts/cli.py route \
+  --query-text "我要出租 Dubai Marina 1BR furnished apartment near metro"
+```
+
+### 6. B 端 OK 发布 dry-run
+
+```bash
+python3 scripts/cli.py publish \
+  --query-text "我要出租 Dubai Marina 1BR furnished apartment near metro" \
+  --country uae \
+  --price 8000 \
+  --phone 501234567 \
+  --image "/absolute/path/photo.jpg" \
+  --dry-run
+```
+
+真实发布必须显式追加 `--confirm-submit`。没有图片时可以生成草稿或填表，但确认发布前会要求补至少一张本地绝对路径图片。
+
 ## 输出说明
 
 搜索结果默认返回 JSON，其中包含：
@@ -186,3 +223,4 @@ python3 -B -m unittest discover -s public-osm-map-context-skill/tests
 - 地图结构化 assessments
 - 缺原帖链接 fail-closed
 - 最终 8 列候选表 golden test
+- B 端发布意图识别、缺字段追问、OK 发布参数安全策略、GT dry-run payload

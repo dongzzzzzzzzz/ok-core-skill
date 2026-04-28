@@ -6,12 +6,14 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlparse, urlunparse
 
 from .analysis import safe_text
-from .models import PreflightCheck, PreflightReport
+from .models import PreflightCheck, PreflightReport, PublishPropertyRequest
+from .publish import gt_publish_payload
 
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
@@ -84,6 +86,19 @@ def resolve_gt_skill_root(
     raise GTCoreSkillError("Unable to locate gt-core-skill. Set GT_CORE_SKILL_ROOT or PROPERTY_GT_SKILL_ROOT.")
 
 
+def resolve_gt_publish_skill_root(
+    custom_root: str | Path | None = None,
+    env: dict[str, str] | None = None,
+    runner: Runner | None = None,
+) -> Path:
+    env = env or os.environ
+    runner = runner or subprocess.run
+    for candidate in _candidate_roots(custom_root, env):
+        if probe_gt_publish_capability(candidate, runner=runner):
+            return candidate
+    raise GTCoreSkillError("Unable to locate gt-core-skill with publish-listing support.")
+
+
 def probe_gt_skill_mode(root: str | Path, *, runner: Runner | None = None) -> str | None:
     runner = runner or subprocess.run
     root_path = Path(root).expanduser()
@@ -106,6 +121,26 @@ def probe_gt_skill_mode(root: str | Path, *, runner: Runner | None = None) -> st
     if "search-listings" in help_text:
         return GT_API_MODE
     return None
+
+
+def probe_gt_publish_capability(root: str | Path, *, runner: Runner | None = None) -> bool:
+    runner = runner or subprocess.run
+    root_path = Path(root).expanduser()
+    cli_path = root_path / "scripts" / "cli.py"
+    if not cli_path.exists():
+        return False
+    completed = runner(
+        [sys.executable, "-B", "scripts/cli.py", "--help"],
+        cwd=str(root_path),
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return False
+    help_text = f"{completed.stdout}\n{completed.stderr}".lower()
+    return "publish-listing" in help_text
 
 
 def canonicalize_gumtree_url(url: str | None) -> str | None:
@@ -474,3 +509,143 @@ def _format_gt_price(value: Any) -> str | None:
     if not text:
         return None
     return text
+
+
+class GTPublishSkillClient:
+    source_name = "gt-core-skill"
+    runtime_mode = "api-publish"
+    detail_supported = False
+
+    def __init__(
+        self,
+        *,
+        skill_root: str | Path | None = None,
+        runner: Runner | None = None,
+        which: Which | None = None,
+        env: dict[str, str] | None = None,
+    ) -> None:
+        self.env = env or os.environ
+        self.runner = runner or subprocess.run
+        self.which = which or shutil.which
+        self.skill_root = resolve_gt_publish_skill_root(skill_root, self.env, runner=self.runner)
+        self._selected_runner: str | None = None
+        self._selected_prefix: list[str] | None = None
+        self.last_command: list[str] = []
+
+    def doctor(self, *, run_browser_smoke: bool = True) -> PreflightReport:
+        root = self.skill_root
+        cli_path = root / "scripts" / "cli.py"
+        checks = [
+            PreflightCheck(name="skill_root", ok=root.exists(), message=f"gt-core-skill publish root: {root}"),
+            PreflightCheck(
+                name="cli_entry",
+                ok=cli_path.exists(),
+                message=f"CLI entry {'found' if cli_path.exists() else 'missing'} at {cli_path}",
+            ),
+            PreflightCheck(
+                name="publish_capability",
+                ok=probe_gt_publish_capability(root, runner=self.runner),
+                message="publish-listing capability detected.",
+            ),
+        ]
+        prefix, runner_name, runtime_check = self._select_runtime()
+        checks.append(runtime_check)
+        ok = all(check.ok for check in checks if check.name in {"skill_root", "cli_entry", "publish_capability", "runtime_smoke"})
+        if runtime_check.ok:
+            self._selected_runner = runner_name
+            self._selected_prefix = prefix
+        else:
+            self._selected_runner = None
+            self._selected_prefix = None
+        return PreflightReport(
+            ok=ok,
+            skill_root=str(root),
+            selected_runner=runner_name if runtime_check.ok else None,
+            checks=checks,
+            warnings=[],
+            source_name=self.source_name,
+            runtime_mode=self.runtime_mode,
+            detail_supported=self.detail_supported,
+        )
+
+    def publish_property(
+        self,
+        request: PublishPropertyRequest,
+        *,
+        submit: bool = False,
+        save_draft: bool = False,
+        dry_run: bool = True,
+    ) -> dict[str, Any]:
+        if submit:
+            return {
+                "ok": False,
+                "error": "GT real publishing is not enabled in property-advisor yet; use dry-run payload review first.",
+            }
+        payload = gt_publish_payload(request)
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=False) as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+            payload_file = handle.name
+        args = ["publish-listing", "--payload-file", payload_file, "--dry-run"]
+        return self._run_json(args, timeout=120)
+
+    def _select_runtime(self) -> tuple[list[str], str, PreflightCheck]:
+        python3 = self.which("python3")
+        if python3:
+            prefix = ["python3", "scripts/cli.py"]
+            check = self._smoke_runtime(prefix, "python3")
+            if check.ok:
+                return prefix, "python3", check
+        python3 = python3 or "python3"
+        prefix = [python3, "-m", "gumtree_skills"]
+        check = self._smoke_runtime(prefix, "python_module")
+        if check.ok:
+            return prefix, "python_module", check
+        return [], "unavailable", PreflightCheck(
+            name="runtime_smoke",
+            ok=False,
+            message="Neither python3 scripts/cli.py nor python -m gumtree_skills passed GT publish help smoke.",
+        )
+
+    def _smoke_runtime(self, prefix: list[str], runtime_name: str) -> PreflightCheck:
+        completed = self._run(prefix + ["publish-listing", "--help"], timeout=45, check=False)
+        ok = completed.returncode == 0
+        return PreflightCheck(
+            name="runtime_smoke",
+            ok=ok,
+            message=f"{runtime_name} runtime {'passed' if ok else 'failed'} GT publish help smoke.",
+            detail={"stdout": completed.stdout.strip()[:300], "stderr": completed.stderr.strip()[:300]},
+        )
+
+    def _ensure_runtime(self) -> tuple[list[str], str]:
+        if self._selected_prefix and self._selected_runner:
+            return self._selected_prefix, self._selected_runner
+        report = self.doctor(run_browser_smoke=False)
+        if not report.ok and report.selected_runner is None:
+            raise GTCoreSkillError("gt-core-skill publish runtime preflight failed.")
+        if not self._selected_prefix or not self._selected_runner:
+            raise GTCoreSkillError("gt-core-skill publish runtime unavailable after preflight.")
+        return self._selected_prefix, self._selected_runner
+
+    def _run_json(self, args: list[str], *, timeout: int = 120) -> dict[str, Any]:
+        prefix, _runtime_name = self._ensure_runtime()
+        self.last_command = prefix + args
+        completed = self._run(self.last_command, timeout=timeout, check=False)
+        if completed.returncode != 0:
+            raise GTCoreSkillError(
+                f"gt-core-skill publish command failed ({completed.returncode}): {' '.join(self.last_command)}\n"
+                f"stdout: {completed.stdout}\nstderr: {completed.stderr}"
+            )
+        try:
+            return json.loads(completed.stdout)
+        except json.JSONDecodeError as exc:
+            raise GTCoreSkillError(f"gt-core-skill returned invalid JSON: {completed.stdout[:500]}") from exc
+
+    def _run(self, command: list[str], *, timeout: int, check: bool) -> subprocess.CompletedProcess[str]:
+        return self.runner(
+            command,
+            cwd=str(self.skill_root),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=check,
+        )

@@ -1,8 +1,8 @@
 ---
 name: property-advisor
 description: |
-  房产搜索与决策执行 skill。遇到租房、买房、找房、筛房、比较房源、通勤、周边配套、安全、区域判断等请求时触发。
-  这是一个 OpenClaw 优先的编排型 skill：主动调用 ok-core-skill 获取房源，补齐详情，再显式调用仓库内的 public-osm-map-context-skill 做地图增强，最后输出结构化候选表。
+  房产搜索、决策与发布执行 skill。遇到租房、买房、找房、筛房、比较房源、通勤、周边配套、安全、区域判断，或发布出售/出租房源等请求时触发。
+  这是一个 OpenClaw 优先的编排型 skill：C 端主动调用 ok-core-skill / gt-core-skill 获取房源并做地图增强；B 端解析发布资料，补齐关键字段后调用 ok-core-skill 发布房源。
 metadata:
   short-description: 房产搜索与地图增强编排
 ---
@@ -17,6 +17,8 @@ metadata:
 
 ## 必走主链路
 
+### C 端找房
+
 当用户提出搜索、筛选、比较房源，或要求看通勤、周边、安全、区域时，默认执行下面的链路：
 
 1. 识别用户需求和最小约束
@@ -30,6 +32,20 @@ metadata:
 8. 输出固定 8 列候选表
 
 不要把这条链路交给模型自由发挥，也不要只停在“我建议你去调用某个 skill”。
+
+### B 端发布房源
+
+当用户提出发布、出租、出售自己的房源，或发房产广告时，默认执行发布链路：
+
+1. 判断是 `business_publish` 还是仍属于 C 端找房
+2. 判断 `mode=sale|rent`
+3. 抽取目标站点、房源类型、位置、价格、联系方式、图片路径、房型面积等字段
+4. 抽取房源特色与强项，并生成标题/描述
+5. 如果缺少必填字段，返回 `missing_fields` 和 `follow_up_questions`，禁止调用发布命令
+6. 第一阶段默认使用 `ok-core-skill publish-property`
+7. 不带 `--submit` 时只填写表单；只有用户明确确认后才允许追加 `--submit`
+
+B 端发布不得编造价格、面积、地址、联系方式、图片、房间数、卫浴数或未提供的设施。
 
 ## 运行时硬规则
 
@@ -59,6 +75,14 @@ metadata:
 - 用裸 `python3 scripts/cli.py` 调 `ok-core-skill`
 - 假设历史路径一定存在
 - 不做 preflight 就直接开跑
+
+发布补充规则：
+
+- 发布房源调用 `publish-property`
+- 必须显式传 `--country` 或 `--subdomain`
+- 出租默认 `--rental-type entire`，租金周期缺失时默认 `--rent-period month`
+- 图片必须是本地绝对路径；OpenClaw 上传附件需要先落地为本地文件
+- 未明确确认真实发布时禁止传 `--submit`
 
 ### gt-core-skill
 
@@ -171,6 +195,8 @@ metadata:
 
 ```bash
 python3 scripts/cli.py doctor --skip-browser-smoke
+python3 scripts/cli.py route --query-text "我要出租 Dubai Marina 1BR"
+python3 scripts/cli.py publish --query-text "我要出租 Dubai Marina 1BR furnished apartment near metro" --country uae --price 8000 --phone 501234567 --image "/absolute/path/photo.jpg" --dry-run
 python3 scripts/cli.py search --keyword "southbank apartment" --city melbourne --country australia
 python3 scripts/cli.py search --keyword "studio flat" --query-text "找 London 的 studio flat" --market auto
 ```
